@@ -24,7 +24,8 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      router.push("/protected");
+      // Route by role at "/" — owner → /dashboard, sales_rep → /protected.
+      router.push("/");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
