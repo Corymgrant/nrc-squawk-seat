@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   if (itemRef) qs.set("item_ref", itemRef);
   if (status) qs.set("status", status);
   try {
-    const r = await fetch(`${BASE}/api/owner/notes?${qs.toString()}`, {
+    const r = await fetch(`${BASE}/notes?${qs.toString()}`, {
       headers: { "X-Tasks-Token": TOKEN! },
       cache: "no-store",
     });
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Note body required" }, { status: 422 });
   }
   try {
-    const r = await fetch(`${BASE}/api/owner/notes`, {
+    const r = await fetch(`${BASE}/notes`, {
       method: "POST",
       headers: { "X-Tasks-Token": TOKEN!, "Content-Type": "application/json" },
       body: JSON.stringify(body),

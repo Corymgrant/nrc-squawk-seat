@@ -20,7 +20,7 @@ export async function GET() {
     return NextResponse.json({ error: "Owner API not configured" }, { status: 500 });
   }
   try {
-    const r = await fetch(`${BASE}/api/owner/summary`, {
+    const r = await fetch(`${BASE}/summary`, {
       headers: { "X-Tasks-Token": TOKEN },
       cache: "no-store",
     });

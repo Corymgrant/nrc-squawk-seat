@@ -229,10 +229,13 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const fly = panels?.flywheel ?? {};
   const squawk = panels?.squawk ?? {};
 
-  const closeRate =
-    leads.won_count != null && leads.total_leads
-      ? (Number(leads.won_count) / Number(leads.total_leads)) * 100
-      : null;
+  // Close rate = closed-won ÷ quoted for the matured 90→14d cohort
+  // (backend: data.get_close_rate_cohort).
+  const cr = leads.close_rate ?? {};
+  const closeRate = cr.close_rate_pct != null ? Number(cr.close_rate_pct) : null;
+  const crWon = cr.won_count;
+  const crQuoted = cr.quoted_count;
+  const crLabel = cr.window_label ?? "last 90d";
 
   const freqColor =
     ads.frequency_level === "danger" ? C.red : ads.frequency_level === "warn" ? C.amber : C.emerald;
@@ -349,7 +352,11 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <Stat k="Revenue" v={money(leads.won_revenue)} />
           <Stat k="Close rate" v={closeRate != null ? `${num(closeRate, 1)}%` : "—"} />
         </div>
-        <div style={{ ...label, marginTop: 8 }}>{leads.total_leads != null ? `${Number(leads.total_leads).toLocaleString()} leads in cohort` : ""}</div>
+        <div style={{ ...label, marginTop: 8 }}>
+          {crWon != null && crQuoted != null
+            ? `${Number(crWon).toLocaleString()} of ${Number(crQuoted).toLocaleString()} quoted (${crLabel}) = ${num(closeRate, 1)}%`
+            : ""}
+        </div>
         <NoteThread itemType="lead" itemRef="pipeline" itemLabel="Leads & quotes" notes={notes} onPosted={loadNotes} />
       </div>
 
