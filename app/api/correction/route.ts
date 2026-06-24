@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 // notifies Cory for review into the deterministic anti-guarantee gate.
 const WEBHOOK = process.env.CORRECTION_WEBHOOK_URL;
 const CATEGORIES = ["compliance", "wording", "factual"];
-const APPLIES = ["michael", "erika", "both"];
+const APPLIES = ["michael", "erika", "both", "a3"];
 
 export async function POST(req: Request) {
   const supabase = await createClient();
