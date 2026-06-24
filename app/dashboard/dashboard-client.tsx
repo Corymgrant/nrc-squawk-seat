@@ -285,6 +285,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
   const [drill, setDrill] = useState<string | null>(null); // "done" | "in_flight" | "blocked" | null
+  const [ksOpen, setKsOpen] = useState(false); // keystone downstream expand
 
   const loadNotes = useCallback(async () => {
     try {
@@ -337,6 +338,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const flyE = panels?.flywheel_erika ?? {};
   const content = panels?.content ?? {};
   const squawk = panels?.squawk ?? {};
+  const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
 
   // Close rate = closed-won ÷ quoted for the matured 90→14d cohort
   // (backend: data.get_close_rate_cohort).
@@ -383,6 +385,54 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           Couldn&apos;t reach Cockpit: {err}
         </div>
       )}
+
+      {/* 0 — KEYSTONE: the single highest-leverage Cory move (sequencer) */}
+      {ks.keystone ? (
+        <div style={{ ...card, borderColor: C.amber }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ ...label, color: C.amber }}>🎯 Do this next</span>
+            <span style={{ ...label, color: C.amber }}>unlocks {ks.n}</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 6, lineHeight: 1.25 }}>
+            {ks.keystone.code ? `${ks.keystone.code} · ` : ""}
+            {(ks.keystone.title || "").replace(/^\s*[A-G][1-9]\s*·\s*/, "")}
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.35 }}>
+            <span style={{ color: C.text, fontWeight: 600 }}>You provide: </span>
+            {ks.keystone.needs_from_cory}
+          </div>
+          <button
+            onClick={() => setKsOpen((o) => !o)}
+            style={{ ...btn("transparent", C.amber), marginTop: 10, paddingLeft: 0 }}
+          >
+            {ksOpen ? "▾" : "▸"} unblocks {ks.n} downstream
+          </button>
+          {ksOpen && (
+            <div style={{ marginTop: 4, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>
+              {(ks.downstream ?? []).map((d: { id: number; code?: string; title?: string; status?: string }) => (
+                <ItemRow
+                  key={d.id}
+                  title={d.title || `#${d.id}`}
+                  right={d.status ?? ""}
+                  rightColor={C.muted}
+                  detail={<>{d.code ? `${d.code} · ` : ""}#{d.id}</>}
+                  itemType="build"
+                  itemRef={taskItemRef(d.id)}
+                  itemLabel={(d.title || `task ${d.id}`).slice(0, 48)}
+                  notes={notes}
+                  onPosted={loadNotes}
+                />
+              ))}
+            </div>
+          )}
+          <NoteThread itemType="build" itemRef="keystone" itemLabel="Keystone — do this next" notes={notes} onPosted={loadNotes} />
+        </div>
+      ) : ks.all_clear ? (
+        <div style={{ ...card, borderColor: C.emerald }}>
+          <span style={{ ...label, color: C.emerald }}>🎯 Do this next</span>
+          <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>No blockers — all clear.</div>
+        </div>
+      ) : null}
 
       {/* Notes / Ask inbox */}
       <div style={card}>
