@@ -368,6 +368,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const content = panels?.content ?? {};
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
+  const a3 = panels?.a3_flywheel ?? {}; // A3 autonomous engagement engine · per-framing outcomes (TEST MODE)
 
   // Close rate = closed-won ÷ quoted for the matured 90→14d cohort
   // (backend: data.get_close_rate_cohort).
@@ -807,6 +808,40 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           )}
         </div>
         <NoteThread itemType="system" itemRef="flywheel" itemLabel="Flywheel edit rate" notes={notes} onPosted={loadNotes} />
+      </div>
+
+      {/* 7a — A3 engagement engine · per-framing outcomes (TEST MODE) */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={label}>A3 engagement engine · per-framing</span>
+          <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>TEST MODE</span>
+        </div>
+        {a3.totals ? (
+          <>
+            <div style={{ ...big, fontSize: 30, marginTop: 4 }}>
+              {a3.totals.reply_pct != null ? `${num(a3.totals.reply_pct, 0)}%` : "—"}
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}>
+                {" "}reply · {a3.totals.conversion_pct != null ? `${num(a3.totals.conversion_pct, 0)}%` : "—"} conv · {a3.totals.escalation_pct != null ? `${num(a3.totals.escalation_pct, 0)}%` : "—"} esc
+              </span>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {(a3.per_framing ?? []).map((f: any) => (
+                <div key={f.framing_key} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderTop: `1px solid ${C.line}` }}>
+                  <span style={label}>{f.framing_key}</span>
+                  <span style={{ color: C.muted }}>
+                    {f.reply_pct != null ? `${num(f.reply_pct, 0)}%` : "—"} r · {f.conversion_pct != null ? `${num(f.conversion_pct, 0)}%` : "—"} c · {f.escalation_pct != null ? `${num(f.escalation_pct, 0)}%` : "—"} e · n{f.sends}
+                  </span>
+                </div>
+              ))}
+              {(a3.per_framing ?? []).length === 0 && (
+                <div style={{ ...label, marginTop: 4 }}>no framing outcomes yet</div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ ...label, marginTop: 6 }}>{a3.error ? "unavailable" : "no data"}</div>
+        )}
+        <NoteThread itemType="system" itemRef="a3_flywheel" itemLabel="A3 engagement engine" notes={notes} onPosted={loadNotes} />
       </div>
 
       {/* 7b — Teach the Assistant flywheel (corrections from the rep seat) */}
