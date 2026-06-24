@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Account not provisioned" }, { status: 403 });
   }
 
-  let body: { text?: string; lead_id?: string };
+  let body: { text?: string; lead_id?: string; image_path?: string };
   try {
     body = await req.json();
   } catch {
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Please describe the problem." }, { status: 400 });
   }
   const lead_id = (body.lead_id || "").trim() || undefined;
+  const image_path = (body.image_path || "").trim() || null;
 
   if (!WEBHOOK) {
     return NextResponse.json({ error: "Squawk intake not configured" }, { status: 500 });
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
         reporter: profile.full_name || profile.email || "michael",
         text,
         lead_id,
+        image_path,
       }),
     });
     if (r.ok) {
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
     reporter: profile.full_name || profile.email,
     text,
     lead_id: lead_id ?? null,
+    image_path,
     reply,
   });
 
