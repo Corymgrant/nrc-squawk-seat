@@ -68,6 +68,27 @@ type AdItem = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Panels = Record<string, any>;
 
+type CorrItem = {
+  id: number | string;
+  not_say: string;
+  should_say: string;
+  distilled_rule: string | null;
+  category?: string;
+  applies_to?: string;
+  status?: string;
+  promote_to_gate?: boolean;
+  gate_promoted_at?: string | null;
+  created_at?: string;
+  reporter?: string | null;
+};
+type CorrData = {
+  total: number;
+  active: number;
+  compliance_pending_count: number;
+  compliance_pending: CorrItem[];
+  recent: CorrItem[];
+};
+
 function money(n: number | null | undefined) {
   if (n == null || isNaN(Number(n))) return "—";
   return "$" + Math.round(Number(n)).toLocaleString();
@@ -286,6 +307,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const [updated, setUpdated] = useState<Date | null>(null);
   const [drill, setDrill] = useState<string | null>(null); // "done" | "in_flight" | "blocked" | null
   const [ksOpen, setKsOpen] = useState(false); // keystone downstream expand
+  const [corr, setCorr] = useState<CorrData | null>(null); // "Teach the Assistant" flywheel
 
   const loadNotes = useCallback(async () => {
     try {
@@ -310,6 +332,13 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       }
     } catch (e) {
       setErr(String(e));
+    }
+    try {
+      const rc = await fetch("/api/dashboard/corrections", { cache: "no-store" });
+      const jc = await rc.json();
+      if (rc.ok) setCorr(jc);
+    } catch {
+      /* keep last */
     }
     loadNotes();
   }, [loadNotes]);
@@ -778,6 +807,78 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           )}
         </div>
         <NoteThread itemType="system" itemRef="flywheel" itemLabel="Flywheel edit rate" notes={notes} onPosted={loadNotes} />
+      </div>
+
+      {/* 7b — Teach the Assistant flywheel (corrections from the rep seat) */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={label}>Teach the Assistant · corrections</span>
+          <span style={{ ...label, color: (corr?.compliance_pending_count ?? 0) ? C.amber : C.muted }}>
+            {corr?.compliance_pending_count ?? 0} to gate
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 18, marginTop: 8 }}>
+          <Stat k="Submitted" v={corr ? String(corr.total) : "—"} />
+          <Stat k="Active rules" v={corr ? String(corr.active) : "—"} />
+        </div>
+
+        {(corr?.compliance_pending ?? []).length > 0 && (
+          <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>
+            <div style={{ ...label, color: C.amber, marginBottom: 2 }}>
+              promote into hard compliance gate
+            </div>
+            {(corr?.compliance_pending ?? []).map((c) => (
+              <ItemRow
+                key={`cg-${c.id}`}
+                title={c.distilled_rule || c.should_say || "(compliance rule)"}
+                right="compliance"
+                rightColor={C.amber}
+                detail={
+                  <>
+                    NOT: {String(c.not_say).slice(0, 80)} → SHOULD: {String(c.should_say).slice(0, 80)}
+                    {c.reporter ? ` · from ${c.reporter}` : ""}
+                  </>
+                }
+                itemType="squawk"
+                itemRef={`correction-${c.id}`}
+                itemLabel={(c.distilled_rule || c.should_say || "correction").slice(0, 48)}
+                notes={notes}
+                onPosted={loadNotes}
+              />
+            ))}
+          </div>
+        )}
+
+        {(corr?.recent ?? []).length > 0 && (
+          <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>
+            <div style={{ ...label, marginBottom: 2 }}>recent corrections</div>
+            {(corr?.recent ?? []).map((c, i) => (
+              <ItemRow
+                key={`cr-${c.id}`}
+                title={c.distilled_rule || c.should_say || "(rule)"}
+                right={c.status === "active" ? "active" : c.status ?? ""}
+                rightColor={c.status === "active" ? C.emerald : C.muted}
+                detail={
+                  <>
+                    {c.category ? `${c.category} · ` : ""}
+                    {c.applies_to ? `${c.applies_to} · ` : ""}
+                    NOT: {String(c.not_say).slice(0, 70)}
+                  </>
+                }
+                itemType="squawk"
+                itemRef={`correction-${c.id}`}
+                itemLabel={(c.distilled_rule || c.should_say || "correction").slice(0, 48)}
+                notes={notes}
+                onPosted={loadNotes}
+                topBorder={i > 0}
+              />
+            ))}
+          </div>
+        )}
+        {corr && corr.total === 0 && (
+          <div style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>No corrections yet.</div>
+        )}
+        <NoteThread itemType="system" itemRef="corrections" itemLabel="Teach the Assistant" notes={notes} onPosted={loadNotes} />
       </div>
 
       {/* 8 — content queue (read-only) */}
