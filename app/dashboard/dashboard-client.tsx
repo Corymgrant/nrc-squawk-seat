@@ -89,6 +89,34 @@ type CorrData = {
   recent: CorrItem[];
 };
 
+// Orchestrator operator seat (card #161): queued / in-progress / blocked(parked) /
+// done jobs from the task-ledger. A parked job carries a waiting_on unlock-question
+// the owner answers from here so the Conductor resumes WITH the answer.
+type OrchItem = {
+  id: number | string;
+  title: string | null;
+  status: string | null;
+  priority: string | null;
+  lane: string | null;
+  progress_pct: number | null;
+  type: string | null;
+  cook: string | null;
+  waiting_on: string;
+  answered: boolean;
+  last_action: string | null;
+  updatedAt: string | null;
+};
+type OrchView = {
+  ok?: boolean;
+  queued: OrchItem[];
+  in_progress: OrchItem[];
+  blocked: OrchItem[];
+  done: OrchItem[];
+  parked?: OrchItem[];
+  counts?: Record<string, number>;
+  error?: string;
+};
+
 function money(n: number | null | undefined) {
   if (n == null || isNaN(Number(n))) return "—";
   return "$" + Math.round(Number(n)).toLocaleString();
@@ -308,6 +336,17 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const [drill, setDrill] = useState<string | null>(null); // "done" | "in_flight" | "blocked" | null
   const [ksOpen, setKsOpen] = useState(false); // keystone downstream expand
   const [corr, setCorr] = useState<CorrData | null>(null); // "Teach the Assistant" flywheel
+  const [orch, setOrch] = useState<OrchView | null>(null); // orchestrator operator seat (card #161)
+
+  const loadOrch = useCallback(async () => {
+    try {
+      const r = await fetch("/api/dashboard/orchestrator", { cache: "no-store" });
+      const j = await r.json();
+      if (r.ok) setOrch(j);
+    } catch {
+      /* keep last */
+    }
+  }, []);
 
   const loadNotes = useCallback(async () => {
     try {
@@ -341,7 +380,8 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       /* keep last */
     }
     loadNotes();
-  }, [loadNotes]);
+    loadOrch();
+  }, [loadNotes, loadOrch]);
 
   useEffect(() => {
     load();
@@ -369,6 +409,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
   const a3 = panels?.a3_flywheel ?? {}; // A3 autonomous engagement engine · per-framing outcomes (TEST MODE)
+  const dm = panels?.drafter_maturity ?? {}; // Drafter Maturity gauge (READ-ONLY readiness gauge — nothing fires)
 
   // Close rate = closed-won ÷ quoted for the matured 90→14d cohort
   // (backend: data.get_close_rate_cohort).
@@ -463,6 +504,9 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>No blockers — all clear.</div>
         </div>
       ) : null}
+
+      {/* Orchestrator — operator seat: queue cooks + answer parked jobs (card #161) */}
+      <OrchestratorPanel orch={orch} onChanged={loadOrch} />
 
       {/* Notes / Ask inbox */}
       <div style={card}>
@@ -810,6 +854,66 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         <NoteThread itemType="system" itemRef="flywheel" itemLabel="Flywheel edit rate" notes={notes} onPosted={loadNotes} />
       </div>
 
+      {/* 7b — Drafter Maturity gauge · email auto-answer readiness (READ-ONLY; nothing fires) */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={label}>Drafter Maturity · auto-answer readiness</span>
+          <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>GAUGE · READ-ONLY</span>
+        </div>
+        {["michael", "erika"].map((k) => {
+          const ld: any = (dm.lanes ?? {})[k] ?? {};
+          const name = k.charAt(0).toUpperCase() + k.slice(1);
+          const rd = ld.readiness ?? {};
+          const span = ld.data_span ?? {};
+          const candColor = rd.candidate ? C.emerald : C.muted;
+          return (
+            <div key={k} style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ ...label, color: C.text, fontWeight: 600 }}>{name}</span>
+                    <span style={{ fontSize: 11, color: maturityTrendColor(ld.trend_direction) }}>
+                      {ld.trend_direction ?? ""}
+                      {ld.trend_delta_pct != null ? ` ${ld.trend_delta_pct > 0 ? "+" : ""}${num(ld.trend_delta_pct, 1)}%` : ""}
+                    </span>
+                  </div>
+                  {ld.no_data ? (
+                    <div style={{ ...big, fontSize: 24, marginTop: 4, color: C.muted }}>no sent drafts</div>
+                  ) : (
+                    <div style={{ ...big, fontSize: 30, marginTop: 4 }}>
+                      {ld.rolling_7d_pct != null ? `${num(ld.rolling_7d_pct, 1)}%` : "—"}
+                      <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}> 7-day edit-rate</span>
+                    </div>
+                  )}
+                  {!ld.no_data && (
+                    <div style={{ ...label, marginTop: 4 }}>
+                      {ld.n_7d ?? 0} drafts/7d · {ld.n_today ?? 0} today · {span.days_with_data ?? 0}d of data
+                      {ld.sample_size_ok === false ? " · small-n" : ""}
+                    </div>
+                  )}
+                </div>
+                {!ld.no_data && (
+                  <div style={{ alignSelf: "center", flex: "0 0 auto" }}>
+                    <Sparkline daily={ld.daily ?? []} ok={!!rd.candidate} />
+                  </div>
+                )}
+              </div>
+              {/* deterministic readiness read — no LLM */}
+              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ marginTop: 4, width: 8, height: 8, borderRadius: 8, background: candColor, flex: "0 0 auto", boxShadow: `0 0 6px ${candColor}66` }} />
+                <span style={{ fontSize: 12, color: C.text, lineHeight: 1.35 }}>{rd.read ?? "—"}</span>
+              </div>
+            </div>
+          );
+        })}
+        {/* lane split status — canonical vs Sonnet generation lane */}
+        <div style={{ marginTop: 10, fontSize: 11, color: C.muted, lineHeight: 1.35, borderTop: `1px dashed ${C.line}`, paddingTop: 8 }}>
+          Lane split (canonical vs Sonnet):{" "}
+          {dm.lanes?.michael?.lane_split?.captured ? "captured" : "not captured yet"} — {dm.lanes?.michael?.lane_split?.note ?? ""}
+        </div>
+        <NoteThread itemType="system" itemRef="drafter_maturity" itemLabel="Drafter Maturity" notes={notes} onPosted={loadNotes} />
+      </div>
+
       {/* 7a — A3 engagement engine · per-framing outcomes (TEST MODE) */}
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -990,6 +1094,241 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   );
 }
 
+/* ── Orchestrator operator seat (card #161) ─────────────────────────────────────
+   THE control surface for the autonomy stack: click-to-queue a cook, answer a
+   parked job's unlock-question (so the Conductor resumes WITH the answer), and a
+   live queue view. The answer/queue writes go through the audited cockpit proxy. */
+function orchStatusColor(s?: string | null) {
+  const v = (s || "").replace("_", "-");
+  if (v === "done") return C.emerald;
+  if (v === "blocked") return C.red;
+  if (v === "in-progress") return C.amber;
+  return C.muted;
+}
+
+function ParkedAnswer({ job, onChanged }: { job: OrchItem; onChanged: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  async function send() {
+    const answer = text.trim();
+    if (!answer) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/dashboard/orchestrator/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, answer }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setErr(j.error || `error ${r.status}`);
+      } else {
+        setDone(true);
+        setText("");
+        onChanged();
+      }
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
+      <div style={{ fontSize: 13, color: C.text }}>
+        <span style={{ color: C.muted }}>#{job.id} · </span>
+        {(job.title || "job").slice(0, 70)}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 12.5, color: C.amber, lineHeight: 1.35 }}>
+        ⛔ {job.waiting_on}
+      </div>
+      {done || job.answered ? (
+        <div style={{ marginTop: 6, fontSize: 12.5, color: C.emerald }}>
+          ✓ answered — re-queued; Conductor resumes with your answer.
+        </div>
+      ) : (
+        <>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Your answer — the Conductor resumes WITH this…"
+            rows={2}
+            style={{
+              width: "100%",
+              marginTop: 6,
+              background: C.bg,
+              color: C.text,
+              border: `1px solid ${C.line}`,
+              borderRadius: 10,
+              padding: 8,
+              fontSize: 13,
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
+            <button onClick={send} disabled={busy} style={btn(C.amber)}>
+              {busy ? "…" : "Answer & resume"}
+            </button>
+            {err && <span style={{ fontSize: 11.5, color: C.red }}>{err}</span>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OrchestratorPanel({ orch, onChanged }: { orch: OrchView | null; onChanged: () => void }) {
+  const [cook, setCook] = useState("");
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [showQueue, setShowQueue] = useState(false);
+
+  const parked = orch?.blocked ?? [];
+  const queued = orch?.queued ?? [];
+  const running = orch?.in_progress ?? [];
+  const done = orch?.done ?? [];
+
+  async function queueCook() {
+    const c = cook.trim();
+    if (!c) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/dashboard/orchestrator/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cook: c, title: title.trim() || undefined }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setMsg(j.error || `error ${r.status}`);
+      } else {
+        setMsg("✓ queued — dispatches on the next tick.");
+        setCook("");
+        setTitle("");
+        onChanged();
+      }
+    } catch (e) {
+      setMsg(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, borderColor: parked.length ? C.red : C.line }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={label}>🛩️ Orchestrator — operator seat</span>
+        <span style={{ ...label, color: parked.length ? C.red : C.muted }}>
+          {parked.length} parked
+        </span>
+      </div>
+
+      {/* parked jobs awaiting an answer — the core */}
+      {parked.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ ...label, color: C.red, marginBottom: 2 }}>
+            needs you — answer to resume
+          </div>
+          {parked.map((j) => (
+            <ParkedAnswer key={j.id} job={j} onChanged={onChanged} />
+          ))}
+        </div>
+      )}
+
+      {/* click-to-queue a 04-Working cook */}
+      <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+        <div style={{ ...label, marginBottom: 6 }}>queue a cook</div>
+        <input
+          value={cook}
+          onChange={(e) => setCook(e.target.value)}
+          placeholder="cook path or Drive ref (04-Working)"
+          style={{
+            width: "100%",
+            background: C.bg,
+            color: C.text,
+            border: `1px solid ${C.line}`,
+            borderRadius: 10,
+            padding: 8,
+            fontSize: 13,
+          }}
+        />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="title (optional)"
+          style={{
+            width: "100%",
+            marginTop: 6,
+            background: C.bg,
+            color: C.text,
+            border: `1px solid ${C.line}`,
+            borderRadius: 10,
+            padding: 8,
+            fontSize: 13,
+          }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
+          <button onClick={queueCook} disabled={busy} style={btn(C.emerald)}>
+            {busy ? "…" : "Queue cook"}
+          </button>
+          {msg && (
+            <span style={{ fontSize: 11.5, color: msg.startsWith("✓") ? C.emerald : C.red }}>
+              {msg}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* live queue view */}
+      <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+        <button
+          onClick={() => setShowQueue((s) => !s)}
+          style={{ ...btn("transparent", C.muted), paddingLeft: 0 }}
+        >
+          {showQueue ? "▾" : "▸"} queue · {queued.length} queued · {running.length} running ·{" "}
+          {parked.length} parked · {done.length} done
+        </button>
+        {showQueue && (
+          <div style={{ marginTop: 6 }}>
+            {[...running, ...queued, ...parked, ...done.slice(0, 8)].map((j, i) => (
+              <div
+                key={`${j.id}-${i}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "5px 0",
+                  borderTop: i ? `1px solid ${C.line}` : "none",
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: C.text }}>
+                  <span style={{ color: C.muted }}>#{j.id} · </span>
+                  {(j.title || "job").slice(0, 56)}
+                </span>
+                <span
+                  style={{ fontSize: 11.5, color: orchStatusColor(j.status), whiteSpace: "nowrap" }}
+                >
+                  {(j.status || "").replace("_", "-")}
+                </span>
+              </div>
+            ))}
+            {queued.length + running.length + parked.length + done.length === 0 && (
+              <div style={{ color: C.muted, fontSize: 13 }}>—</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CountChip({
   label: lbl,
   n,
@@ -1035,6 +1374,44 @@ function trendColor(d?: string) {
   if (d === "down") return C.emerald; // lower edit rate = learning
   if (d === "up") return C.amber;
   return C.muted;
+}
+// Drafter-maturity trend: backend emits "down (learning)" / "up (regressing)" / "flat".
+function maturityTrendColor(d?: string) {
+  if (!d) return C.muted;
+  if (d.startsWith("down")) return C.emerald; // edit-rate falling = maturing = good
+  if (d.startsWith("up")) return C.amber; // edit-rate rising = regressing
+  return C.muted;
+}
+// Mini edit-rate sparkline: daily normalized_pct over the window. Lower = more
+// mature. Dot color = readiness candidate (emerald) vs not (muted). Read-only.
+function Sparkline({
+  daily,
+  ok,
+}: {
+  daily: { day: string; n: number; normalized_pct: number | null; small_n?: boolean }[];
+  ok: boolean;
+}) {
+  const pts = (daily ?? []).filter((d) => d && d.normalized_pct != null);
+  if (pts.length < 2) {
+    return <span style={{ fontSize: 11, color: C.muted }}>not enough days to chart</span>;
+  }
+  const W = 132, H = 34, pad = 3;
+  const vals = pts.map((p) => Number(p.normalized_pct));
+  const lo = Math.min(...vals, 0);
+  const hi = Math.max(...vals, 1);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i * (W - 2 * pad)) / (pts.length - 1);
+  const y = (v: number) => H - pad - ((v - lo) / span) * (H - 2 * pad);
+  const line = pts.map((p, i) => `${x(i)},${y(Number(p.normalized_pct))}`).join(" ");
+  const stroke = ok ? C.emerald : C.amber;
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={W} height={H} style={{ display: "block" }} aria-label="edit-rate trend">
+      <polyline points={line} fill="none" stroke={stroke} strokeWidth={1.5}
+        strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+      <circle cx={x(pts.length - 1)} cy={y(Number(last.normalized_pct))} r={2.6} fill={stroke} />
+    </svg>
+  );
 }
 function squawkColor(s?: string) {
   if (s === "resolved" || s === "auto-fixed") return C.emerald;
