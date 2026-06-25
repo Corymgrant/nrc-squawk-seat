@@ -365,6 +365,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const health = panels?.health ?? {};
   const fly = panels?.flywheel ?? {};
   const flyE = panels?.flywheel_erika ?? {};
+  const dm = panels?.drafter_maturity ?? {}; // Drafter Maturity gauge (READ-ONLY readiness gauge — nothing fires)
   const content = panels?.content ?? {};
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
@@ -809,6 +810,66 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         <NoteThread itemType="system" itemRef="flywheel" itemLabel="Flywheel edit rate" notes={notes} onPosted={loadNotes} />
       </div>
 
+      {/* 7a — Drafter Maturity gauge · email auto-answer readiness (READ-ONLY; nothing fires) */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={label}>Drafter Maturity · auto-answer readiness</span>
+          <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>GAUGE · READ-ONLY</span>
+        </div>
+        {["michael", "erika"].map((k) => {
+          const ld: any = (dm.lanes ?? {})[k] ?? {};
+          const name = k.charAt(0).toUpperCase() + k.slice(1);
+          const rd = ld.readiness ?? {};
+          const span = ld.data_span ?? {};
+          const candColor = rd.candidate ? C.emerald : C.muted;
+          return (
+            <div key={k} style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ ...label, color: C.text, fontWeight: 600 }}>{name}</span>
+                    <span style={{ fontSize: 11, color: maturityTrendColor(ld.trend_direction) }}>
+                      {ld.trend_direction ?? ""}
+                      {ld.trend_delta_pct != null ? ` ${ld.trend_delta_pct > 0 ? "+" : ""}${num(ld.trend_delta_pct, 1)}%` : ""}
+                    </span>
+                  </div>
+                  {ld.no_data ? (
+                    <div style={{ ...big, fontSize: 24, marginTop: 4, color: C.muted }}>no sent drafts</div>
+                  ) : (
+                    <div style={{ ...big, fontSize: 30, marginTop: 4 }}>
+                      {ld.rolling_7d_pct != null ? `${num(ld.rolling_7d_pct, 1)}%` : "—"}
+                      <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}> 7-day edit-rate</span>
+                    </div>
+                  )}
+                  {!ld.no_data && (
+                    <div style={{ ...label, marginTop: 4 }}>
+                      {ld.n_7d ?? 0} drafts/7d · {ld.n_today ?? 0} today · {span.days_with_data ?? 0}d of data
+                      {ld.sample_size_ok === false ? " · small-n" : ""}
+                    </div>
+                  )}
+                </div>
+                {!ld.no_data && (
+                  <div style={{ alignSelf: "center", flex: "0 0 auto" }}>
+                    <Sparkline daily={ld.daily ?? []} ok={!!rd.candidate} />
+                  </div>
+                )}
+              </div>
+              {/* deterministic readiness read — no LLM */}
+              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ marginTop: 4, width: 8, height: 8, borderRadius: 8, background: candColor, flex: "0 0 auto", boxShadow: `0 0 6px ${candColor}66` }} />
+                <span style={{ fontSize: 12, color: C.text, lineHeight: 1.35 }}>{rd.read ?? "—"}</span>
+              </div>
+            </div>
+          );
+        })}
+        {/* lane split status — canonical vs Sonnet generation lane */}
+        <div style={{ marginTop: 10, fontSize: 11, color: C.muted, lineHeight: 1.35, borderTop: `1px dashed ${C.line}`, paddingTop: 8 }}>
+          Lane split (canonical vs Sonnet):{" "}
+          {dm.lanes?.michael?.lane_split?.captured ? "captured" : "not captured yet"} — {dm.lanes?.michael?.lane_split?.note ?? ""}
+        </div>
+        <NoteThread itemType="system" itemRef="drafter_maturity" itemLabel="Drafter Maturity" notes={notes} onPosted={loadNotes} />
+      </div>
+
       {/* 7b — Teach the Assistant flywheel (corrections from the rep seat) */}
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -1000,6 +1061,44 @@ function trendColor(d?: string) {
   if (d === "down") return C.emerald; // lower edit rate = learning
   if (d === "up") return C.amber;
   return C.muted;
+}
+// Drafter-maturity trend: backend emits "down (learning)" / "up (regressing)" / "flat".
+function maturityTrendColor(d?: string) {
+  if (!d) return C.muted;
+  if (d.startsWith("down")) return C.emerald; // edit-rate falling = maturing = good
+  if (d.startsWith("up")) return C.amber; // edit-rate rising = regressing
+  return C.muted;
+}
+// Mini edit-rate sparkline: daily normalized_pct over the window. Lower = more
+// mature. Dot color = readiness candidate (emerald) vs not (amber). Read-only.
+function Sparkline({
+  daily,
+  ok,
+}: {
+  daily: { day: string; n: number; normalized_pct: number | null; small_n?: boolean }[];
+  ok: boolean;
+}) {
+  const pts = (daily ?? []).filter((d) => d && d.normalized_pct != null);
+  if (pts.length < 2) {
+    return <span style={{ fontSize: 11, color: C.muted }}>not enough days to chart</span>;
+  }
+  const W = 132, H = 34, pad = 3;
+  const vals = pts.map((p) => Number(p.normalized_pct));
+  const lo = Math.min(...vals, 0);
+  const hi = Math.max(...vals, 1);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i * (W - 2 * pad)) / (pts.length - 1);
+  const y = (v: number) => H - pad - ((v - lo) / span) * (H - 2 * pad);
+  const line = pts.map((p, i) => `${x(i)},${y(Number(p.normalized_pct))}`).join(" ");
+  const stroke = ok ? C.emerald : C.amber;
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={W} height={H} style={{ display: "block" }} aria-label="edit-rate trend">
+      <polyline points={line} fill="none" stroke={stroke} strokeWidth={1.5}
+        strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+      <circle cx={x(pts.length - 1)} cy={y(Number(last.normalized_pct))} r={2.6} fill={stroke} />
+    </svg>
+  );
 }
 function squawkColor(s?: string) {
   if (s === "resolved" || s === "auto-fixed") return C.emerald;
