@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CreativesPanel } from "@/components/creatives-panel";
+import { OpportunitiesBoard } from "@/components/opportunities-board";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -1016,6 +1018,15 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
             )}
           {(squawk.activity ?? []).length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>—</div>}
         </div>
+      </div>
+
+      {/* 9 — Finished Creatives review (rate / keep-kill / annotate finished assets) */}
+      <CreativesPanel />
+
+      {/* 10 — Opportunities board: ranked findings + Approve/Deny (owner-gated, bounded) */}
+      <div style={card}>
+        <div style={{ ...label, marginBottom: 8 }}>Opportunities · approve / deny</div>
+        <OpportunitiesBoard />
       </div>
 
       <div style={{ textAlign: "center", color: C.muted, fontSize: 11, marginTop: 18 }}>
