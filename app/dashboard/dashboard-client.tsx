@@ -305,6 +305,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
+  const [asOf, setAsOf] = useState<string | null>(null); // server-side ledger freshness stamp
   const [drill, setDrill] = useState<string | null>(null); // "done" | "in_flight" | "blocked" | null
   const [ksOpen, setKsOpen] = useState(false); // keystone downstream expand
   const [corr, setCorr] = useState<CorrData | null>(null); // "Teach the Assistant" flywheel
@@ -326,6 +327,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       if (j.panels) {
         setPanels(j.panels);
         setUpdated(new Date());
+        setAsOf(j?.data_as_of?.label ?? null);
         setErr(null);
       } else {
         setErr(j.error || "no data");
@@ -405,9 +407,16 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <div style={{ fontSize: 22, fontWeight: 700 }}>Cockpit</div>
           <div style={{ ...label }}>{ownerName.split(" ")[0]}&apos;s daily driver</div>
         </div>
-        <button onClick={load} style={btn("transparent", C.muted)}>
-          ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+          <button onClick={load} style={btn("transparent", C.muted)}>
+            ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
+          </button>
+          {asOf && (
+            <span style={{ ...label, fontSize: 10, color: C.muted }} title="Ledger read time (server)">
+              {asOf}
+            </span>
+          )}
+        </div>
       </div>
 
       {err && (
