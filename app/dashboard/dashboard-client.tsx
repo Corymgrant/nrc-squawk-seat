@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreativesPanel } from "@/components/creatives-panel";
 import { OpportunitiesBoard } from "@/components/opportunities-board";
+import { SquawkManager } from "@/components/squawk-manager";
+import { MetaPanel } from "@/components/meta-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -759,6 +762,9 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         <NoteThread itemType="system" itemRef="ad-spend" itemLabel="Ad spend" notes={notes} onPosted={loadNotes} />
       </div>
 
+      {/* 5b — Meta ads review (live Graph API, read-only, per-campaign notes) */}
+      <MetaPanel notes={notes} onNotePosted={loadNotes} />
+
       {/* 6 — systems */}
       <div style={card}>
         <span style={label}>Systems</span>
@@ -951,6 +957,25 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <div style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>No corrections yet.</div>
         )}
         <NoteThread itemType="system" itemRef="corrections" itemLabel="Teach the Assistant" notes={notes} onPosted={loadNotes} />
+        {/* surface the live correction window + screenshot/image drag (reuses SquawkConsole; not a rebuild) */}
+        <Link
+          href="/dashboard/teach"
+          style={{
+            display: "block",
+            marginTop: 10,
+            textAlign: "center",
+            background: "#0c0f10",
+            color: C.emerald,
+            border: `1px solid ${C.emerald}55`,
+            borderRadius: 10,
+            padding: "9px 11px",
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          ✎ Teach the Assistant · report with screenshot →
+        </Link>
       </div>
 
       {/* 8 — content queue (read-only) */}
@@ -1019,6 +1044,9 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           {(squawk.activity ?? []).length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>—</div>}
         </div>
       </div>
+
+      {/* squawk tickets — full-text read + manage (resolve/archive/dismiss/edit) */}
+      <SquawkManager notes={notes} onNotePosted={loadNotes} />
 
       {/* 9 — Finished Creatives review (rate / keep-kill / annotate finished assets) */}
       <CreativesPanel />
