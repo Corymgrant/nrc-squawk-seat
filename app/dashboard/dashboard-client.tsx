@@ -377,13 +377,13 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
 
-  // Close rate = closed-won ÷ quoted for the matured 90→14d cohort
-  // (backend: data.get_close_rate_cohort).
-  const cr = leads.close_rate ?? {};
-  const closeRate = cr.close_rate_pct != null ? Number(cr.close_rate_pct) : null;
-  const crWon = cr.won_count;
-  const crQuoted = cr.quoted_count;
-  const crLabel = cr.window_label ?? "last 90d";
+  // Close rate + all-time milestone now ship at the TOP LEVEL of the leads
+  // panel (backend: data.get_close_summary — Cory's 2026-06-30 directive =
+  // this-month closes ÷ this-month new leads). The old nested `leads.close_rate`
+  // matured-cohort object was retired when the headline tile switched to
+  // month-to-date (jobs #282/#287), so read close_rate_pct from the top level.
+  const closeRate = leads.close_rate_pct != null ? Number(leads.close_rate_pct) : null;
+  const allTimeWon = leads.all_time_won;
   const avgDeal =
     leads.won_count && leads.won_revenue ? Number(leads.won_revenue) / Number(leads.won_count) : null;
 
@@ -644,8 +644,11 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <Stat k="Avg deal" v={money(avgDeal)} sm />
         </div>
         <div style={{ ...label, marginTop: 8 }}>
-          {crWon != null && crQuoted != null
-            ? `${Number(crWon).toLocaleString()} of ${Number(crQuoted).toLocaleString()} quoted (${crLabel}) = ${num(closeRate, 1)}%`
+          {leads.won_count != null && leads.total_leads != null
+            ? `${Number(leads.won_count).toLocaleString()} closed of ${Number(leads.total_leads).toLocaleString()} new leads this month${closeRate != null ? ` = ${num(closeRate, 1)}%` : ""}`
+            : ""}
+          {allTimeWon != null
+            ? `  ·  🎉 ${Number(allTimeWon).toLocaleString()} closed all-time`
             : ""}
         </div>
         {(leads.recent_won ?? []).length > 0 && (
