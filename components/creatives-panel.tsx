@@ -55,16 +55,25 @@ const card: React.CSSProperties = {
 };
 const label: React.CSSProperties = { color: C.muted, fontSize: 12.5, fontWeight: 500 };
 
-/* Prefer the Drive copy when present (Drive generates thumbs for images AND
-   video posters); fall back to the render preview_url. */
-function thumbSrc(r: Creative): string | null {
-  if (r.drive_file_id) return `https://drive.google.com/thumbnail?id=${r.drive_file_id}&sz=w480`;
-  if (r.preview_url && !r.preview_url.endsWith(".mp4")) return r.preview_url;
+/* Prefer the Drive copy when present — served through our owner-gated pixel
+   proxy (the Drive files are not link-shared, and drive.google.com URLs die on
+   third-party-cookie blocking). Fall back to the render preview_url. A broken
+   source (e.g. Drive has no poster for a video) demotes via onError. */
+function isDriveUrl(u?: string | null): boolean {
+  return Boolean(u && u.includes("drive.google.com"));
+}
+function thumbSrc(r: Creative, broken: Set<number>): string | null {
+  if (r.drive_file_id && !broken.has(r.id))
+    return `/api/dashboard/creatives/asset/${r.drive_file_id}?sz=grid`;
+  if (r.preview_url && !r.preview_url.endsWith(".mp4") && !isDriveUrl(r.preview_url))
+    return r.preview_url;
   return null;
 }
-function fullSrc(r: Creative): string | null {
-  if (r.drive_file_id) return `https://drive.google.com/thumbnail?id=${r.drive_file_id}&sz=w2048`;
-  return r.preview_url || null;
+function fullSrc(r: Creative, broken: Set<number>): string | null {
+  if (r.drive_file_id && !broken.has(r.id))
+    return `/api/dashboard/creatives/asset/${r.drive_file_id}?sz=full`;
+  if (r.preview_url && !isDriveUrl(r.preview_url)) return r.preview_url;
+  return null;
 }
 function isVideo(r: Creative): boolean {
   return (r.asset_type || "") === "video" || Boolean(r.preview_url?.endsWith(".mp4"));
@@ -113,6 +122,7 @@ export function CreativesPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState<Creative | null>(null); // lightbox
+  const [broken, setBroken] = useState<Set<number>>(new Set()); // rows whose Drive thumb 404'd
   // draft notes per row — Cory's OWN words, never pre-filled with AI text
   const [notes, setNotes] = useState<Record<number, string>>({});
 
@@ -254,7 +264,7 @@ export function CreativesPanel() {
 
                 <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
                   {lk.items.map((r) => {
-                    const src = thumbSrc(r);
+                    const src = thumbSrc(r, broken);
                     return (
                       <div key={r.id} style={{ width: 108 }}>
                         <div
@@ -276,6 +286,7 @@ export function CreativesPanel() {
                               src={src}
                               alt={r.asset_id || lk.concept}
                               loading="lazy"
+                              onError={() => setBroken((b) => new Set(b).add(r.id))}
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                           ) : (
@@ -404,27 +415,36 @@ export function CreativesPanel() {
             </div>
 
             <div style={{ marginTop: 10, textAlign: "center" }}>
-              {isVideo(open) && open.drive_file_id ? (
-                <iframe
-                  src={`https://drive.google.com/file/d/${open.drive_file_id}/preview`}
-                  allow="autoplay"
-                  style={{ width: "100%", height: "60vh", border: 0, borderRadius: 10 }}
-                />
-              ) : isVideo(open) && open.preview_url ? (
+              {isVideo(open) && open.preview_url?.endsWith(".mp4") ? (
                 <video
                   src={open.preview_url}
                   controls
                   style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 10 }}
                 />
-              ) : fullSrc(open) ? (
+              ) : fullSrc(open, broken) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={fullSrc(open)!}
+                  src={fullSrc(open, broken)!}
                   alt={open.asset_id || "creative"}
+                  onError={() => setBroken((b) => new Set(b).add(open.id))}
                   style={{ maxWidth: "100%", maxHeight: "62vh", borderRadius: 10 }}
                 />
               ) : (
-                <div style={{ ...label, padding: 30 }}>no preview available</div>
+                <div style={{ ...label, padding: 30 }}>
+                  {isVideo(open) ? "▶ video — open in Drive to play" : "no preview available"}
+                </div>
+              )}
+              {open.drive_file_id && (
+                <div style={{ marginTop: 8 }}>
+                  <a
+                    href={`https://drive.google.com/file/d/${open.drive_file_id}/view`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...label, color: C.emerald, textDecoration: "none", fontSize: 12.5 }}
+                  >
+                    Open in Drive ↗ {isVideo(open) ? "(plays the full video)" : "(original file)"}
+                  </a>
+                </div>
               )}
             </div>
 
