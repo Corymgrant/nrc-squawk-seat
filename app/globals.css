@@ -66,3 +66,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ==================================================================
+   JOB 327 — Squawk Seat desktop-responsive (2026-07-02, front-end only)
+   The dashboard <main> is hard-capped at maxWidth:440 inline (a phone
+   column). On laptop/desktop we widen the canvas and flow the stacked
+   cards into a 2–3 column masonry. Each column stays ≥440px, so no card
+   is ever narrower than its mobile width. Everything is min-width gated,
+   so below 1000px the mobile single-column layout is 100% unchanged.
+   Revert: delete this block + the cockpit-main/cockpit-cols usage
+   (backup: dashboard-client.tsx.bak-327-*, globals.css.bak-327-*).
+   ================================================================== */
+@media (min-width: 1000px) {
+  /* override the inline maxWidth:440 */
+  .cockpit-main { max-width: 1400px !important; }
+  .cockpit-cols {
+    column-count: 2;
+    column-gap: 16px;
+  }
+  /* keep each card whole across the column break */
+  .cockpit-cols > * {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+    display: block;
+  }
+}
+@media (min-width: 1600px) {
+  .cockpit-main { max-width: 1680px !important; }
+  .cockpit-cols { column-count: 3; }
+}

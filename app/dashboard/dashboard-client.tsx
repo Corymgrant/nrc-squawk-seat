@@ -396,6 +396,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
 
   return (
     <main
+      className="cockpit-main"
       style={{
         background: C.bg,
         color: C.text,
@@ -430,6 +431,11 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         </div>
       )}
 
+      {/* JOB 327 — desktop-responsive masonry: on laptop/wide screens the
+          stacked cards flow into 2–3 columns (each column is still ≥440px, so
+          nothing is narrower than the mobile view). Below 1000px this is a
+          plain block wrapper → the single-column mobile layout is unchanged. */}
+      <div className="cockpit-cols">
       {/* 0 — KEYSTONE: the single highest-leverage Cory move (sequencer) */}
       {ks.keystone ? (
         <div style={{ ...card, borderColor: C.amber }}>
@@ -1059,6 +1065,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         <div style={{ ...label, marginBottom: 8 }}>Opportunities · approve / deny</div>
         <OpportunitiesBoard />
       </div>
+      </div>{/* /cockpit-cols */}
 
       <div style={{ textAlign: "center", color: C.muted, fontSize: 11, marginTop: 18 }}>
         Owner-only · live · refreshes on open · NoRepairCost
