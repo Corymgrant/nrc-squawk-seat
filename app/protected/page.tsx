@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase/admin";
 import { getSessionProfile } from "@/lib/profile";
 import { SquawkConsole } from "@/components/squawk-console";
+import { SystemsStatus } from "@/components/systems-status";
 import { LogoutButton } from "@/components/logout-button";
 
 
@@ -51,10 +52,13 @@ export default async function SeatPage() {
   );
 
   return (
-    <SquawkConsole
-      role={profile.role}
-      fullName={profile.full_name ?? profile.email ?? "there"}
-      tickets={withUrls}
-    />
+    <div className="flex flex-col gap-6">
+      <SystemsStatus />
+      <SquawkConsole
+        role={profile.role}
+        fullName={profile.full_name ?? profile.email ?? "there"}
+        tickets={withUrls}
+      />
+    </div>
   );
 }
