@@ -373,6 +373,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const fly = panels?.flywheel ?? {};
   const flyE = panels?.flywheel_erika ?? {};
   const dm = panels?.drafter_maturity ?? {}; // Drafter Maturity gauge (READ-ONLY readiness gauge — nothing fires)
+  const mc = panels?.michael_calls ?? {}; // Michael Calls · phone-first routing + voice-agent graduation signal (job 379)
   const content = panels?.content ?? {};
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
@@ -894,6 +895,63 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           {dm.lanes?.michael?.lane_split?.captured ? "captured" : "not captured yet"} — {dm.lanes?.michael?.lane_split?.note ?? ""}
         </div>
         <NoteThread itemType="system" itemRef="drafter_maturity" itemLabel="Drafter Maturity" notes={notes} onPosted={loadNotes} />
+      </div>
+
+      {/* 7a2 — Michael Calls · phone-first call routing + voice-agent graduation signal
+          (job 379). High-intent inbounds (pricing / legit-trust / ready-to-buy) queue a
+          Close CALL task for Michael + stage his email fallback draft; this panel watches
+          volume by scenario, call-through rate and conversion — the dataset that says
+          when the voice agent can graduate onto these calls. READ-ONLY. */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={label}>Michael Calls · voice-agent graduation</span>
+          <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>GAUGE · READ-ONLY</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+          <div style={{ ...big, fontSize: 30 }}>{mc.events ?? 0}</div>
+          <span style={{ fontSize: 12, color: C.muted }}>high-intent inbounds queued for a call</span>
+        </div>
+        <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
+          {[
+            ["call-through", mc.call_through_pct != null ? `${num(mc.call_through_pct, 1)}%` : "—", C.emerald],
+            ["conversion", mc.conversion_pct != null ? `${num(mc.conversion_pct, 1)}%` : "—", C.amber],
+            ["pending", String(mc.pending ?? 0), C.muted],
+          ].map(([t, v, c]) => (
+            <div key={t as string}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: c as string }}>{v}</div>
+              <div style={label}>{t}</div>
+            </div>
+          ))}
+        </div>
+        {Object.keys(mc.by_scenario ?? {}).length > 0 && (
+          <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+            {Object.entries(mc.by_scenario ?? {}).map(([k, v]: [string, any]) => {
+              const scenarioName =
+                k === "pricing_objection" ? "Pricing objection" :
+                k === "legit_trust" ? "Is-this-legit / trust" :
+                k === "ready_to_buy" ? "Ready to buy" : k;
+              return (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }}>
+                  <span style={{ color: C.text }}>{scenarioName}</span>
+                  <span style={{ color: C.muted }}>
+                    {v.events} queued · {v.called} called
+                    {v.call_through_pct != null ? ` (${num(v.call_through_pct, 0)}%)` : ""} · {v.converted} won
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {(mc.events ?? 0) > 0 && (
+          <div style={{ ...label, marginTop: 6 }}>
+            fallback drafts: {mc.fallback?.sent_verbatim ?? 0} sent verbatim · {mc.fallback?.edited ?? 0} edited · {mc.fallback?.unsent ?? 0} unsent
+          </div>
+        )}
+        <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <span style={{ marginTop: 4, width: 8, height: 8, borderRadius: 8, background: (mc.events ?? 0) > 0 ? C.emerald : C.muted, flex: "0 0 auto", boxShadow: `0 0 6px ${((mc.events ?? 0) > 0 ? C.emerald : C.muted)}66` }} />
+          <span style={{ fontSize: 12, color: C.text, lineHeight: 1.35 }}>{mc.read ?? "No high-intent call-routing events yet — the ledger starts filling as pricing / trust / ready-to-buy emails arrive."}</span>
+        </div>
+        <NoteThread itemType="system" itemRef="michael_calls" itemLabel="Michael Calls" notes={notes} onPosted={loadNotes} />
       </div>
 
       {/* 7b — Teach the Assistant flywheel (corrections from the rep seat) */}
