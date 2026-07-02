@@ -1057,7 +1057,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       {/* squawk tickets — full-text read + manage (resolve/archive/dismiss/edit) */}
       <SquawkManager notes={notes} onNotePosted={loadNotes} />
 
-      {/* 9 — Finished Creatives review (rate / keep-kill / annotate finished assets) */}
+      {/* 9 — Creative Review: thumbnails by batch+look, approve/reject → flywheel (job 347) */}
       <CreativesPanel />
 
       {/* 10 — Opportunities board: ranked findings + Approve/Deny (owner-gated, bounded) */}
