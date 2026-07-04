@@ -29,12 +29,23 @@ export default async function SeatPage() {
     );
   }
 
+  // Both queries run on the user's session client, so RLS scopes them to the
+  // rep's OWN tickets/notes at the database level — never widen these to admin.
   const supabase = await createClient();
   const { data: tickets } = await supabase
     .from("squawk_tickets")
-    .select("id,reporter,text,reply,created_at,image_path")
+    .select("id,reporter,text,reply,status,created_at,status_updated_at,image_path")
     .order("created_at", { ascending: false })
     .limit(50);
+
+  const ticketIds = (tickets ?? []).map((t) => t.id);
+  const { data: notes } = ticketIds.length
+    ? await supabase
+        .from("squawk_ticket_notes")
+        .select("id,ticket_id,author_role,author_name,text,created_at")
+        .in("ticket_id", ticketIds)
+        .order("created_at", { ascending: true })
+    : { data: [] };
 
   // Sign URLs for any attached images (private bucket → short-lived signed URLs).
   const admin = createAdminClient();
@@ -47,7 +58,11 @@ export default async function SeatPage() {
           .createSignedUrl(t.image_path, SIGNED_URL_TTL);
         image_url = data?.signedUrl ?? null;
       }
-      return { ...t, image_url };
+      return {
+        ...t,
+        image_url,
+        notes: (notes ?? []).filter((n) => n.ticket_id === t.id),
+      };
     }),
   );
 

@@ -19,7 +19,7 @@ export default async function TeachPage() {
   const supabase = await createClient();
   const { data: tickets } = await supabase
     .from("squawk_tickets")
-    .select("id,reporter,text,reply,created_at,image_path")
+    .select("id,reporter,text,reply,status,created_at,status_updated_at,image_path")
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -31,7 +31,7 @@ export default async function TeachPage() {
         const { data } = await admin.storage.from(SQUAWK_IMAGES_BUCKET).createSignedUrl(t.image_path, SIGNED_URL_TTL);
         image_url = data?.signedUrl ?? null;
       }
-      return { ...t, image_url };
+      return { ...t, image_url, notes: [] };
     }),
   );
 

@@ -8,15 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { TeachSandbox } from "@/components/teach-sandbox";
+import { SquawkFeed, type SquawkNote } from "@/components/squawk-feed";
 
 type Ticket = {
   id: string;
   reporter?: string | null;
   text: string;
   reply: string | null;
+  status: string;
   created_at: string;
+  status_updated_at?: string | null;
   image_path?: string | null;
   image_url?: string | null;
+  notes: SquawkNote[];
 };
 type Role = "owner" | "sales_rep";
 type Tab = "report" | "teach" | "practice";
@@ -93,7 +97,23 @@ export function SquawkConsole({
         <TeachSandbox />
       )}
 
-      <RecentReports role={role} tickets={tickets} onExpand={setExpanded} />
+      {role === "owner" ? (
+        <RecentReports role={role} tickets={tickets} onExpand={setExpanded} />
+      ) : (
+        <SquawkFeed
+          tickets={tickets.map((t) => ({
+            id: t.id,
+            text: t.text,
+            reply: t.reply,
+            status: t.status,
+            created_at: t.created_at,
+            status_updated_at: t.status_updated_at ?? null,
+            image_url: t.image_url,
+            notes: t.notes,
+          }))}
+          onExpand={setExpanded}
+        />
+      )}
 
       {expanded && (
         <div
