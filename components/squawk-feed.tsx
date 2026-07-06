@@ -25,6 +25,7 @@ export type SquawkTicket = {
   created_at: string;
   status_updated_at: string | null;
   image_url?: string | null;
+  image_urls?: string[] | null;
   notes: SquawkNote[];
 };
 
@@ -157,15 +158,27 @@ function TicketCard({ ticket, onExpand }: { ticket: SquawkTicket; onExpand: (url
       </div>
       <ProgressTrail status={ticket.status} />
 
-      {ticket.image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={ticket.image_url}
-          alt="Report attachment"
-          onClick={() => onExpand(ticket.image_url!)}
-          className="max-h-24 w-fit cursor-pointer rounded-md border border-input object-cover"
-        />
-      )}
+      {(() => {
+        const urls = ticket.image_urls?.length
+          ? ticket.image_urls
+          : ticket.image_url
+            ? [ticket.image_url]
+            : [];
+        return urls.length ? (
+          <div className="flex flex-wrap gap-2">
+            {urls.map((u, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={u}
+                alt={`Report attachment ${i + 1}`}
+                onClick={() => onExpand(u)}
+                className="max-h-24 w-fit cursor-pointer rounded-md border border-input object-cover"
+              />
+            ))}
+          </div>
+        ) : null;
+      })()}
 
       {(ticket.reply || ticket.notes.length > 0) && (
         <div className="flex flex-col gap-1.5">

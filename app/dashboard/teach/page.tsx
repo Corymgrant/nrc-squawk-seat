@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, SQUAWK_IMAGES_BUCKET, SIGNED_URL_TTL } from "@/lib/supabase/admin";
+import { createAdminClient, signImagePaths } from "@/lib/supabase/admin";
 import { getSessionProfile } from "@/lib/profile";
 import { SquawkConsole } from "@/components/squawk-console";
 
@@ -26,12 +26,8 @@ export default async function TeachPage() {
   const admin = createAdminClient();
   const withUrls = await Promise.all(
     (tickets ?? []).map(async (t) => {
-      let image_url: string | null = null;
-      if (t.image_path) {
-        const { data } = await admin.storage.from(SQUAWK_IMAGES_BUCKET).createSignedUrl(t.image_path, SIGNED_URL_TTL);
-        image_url = data?.signedUrl ?? null;
-      }
-      return { ...t, image_url, notes: [] };
+      const image_urls = await signImagePaths(admin, t.image_path);
+      return { ...t, image_url: image_urls[0] ?? null, image_urls, notes: [] };
     }),
   );
 

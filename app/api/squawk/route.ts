@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { joinImagePaths } from "@/lib/supabase/admin";
 
 const WEBHOOK = process.env.SQUAWK_WEBHOOK_URL;
 
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Account not provisioned" }, { status: 403 });
   }
 
-  let body: { text?: string; lead_id?: string; image_path?: string };
+  let body: { text?: string; lead_id?: string; image_path?: string; image_paths?: string[] };
   try {
     body = await req.json();
   } catch {
@@ -31,7 +32,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Please describe the problem." }, { status: 400 });
   }
   const lead_id = (body.lead_id || "").trim() || undefined;
-  const image_path = (body.image_path || "").trim() || null;
+  // N screenshots per ticket. Prefer the array; fall back to the legacy single field.
+  const rawPaths = Array.isArray(body.image_paths)
+    ? body.image_paths
+    : body.image_path
+      ? [body.image_path]
+      : [];
+  const image_paths = rawPaths.map((p) => (p || "").trim()).filter(Boolean);
+  const image_path = joinImagePaths(image_paths); // newline-joined for storage, null when empty
 
   if (!WEBHOOK) {
     return NextResponse.json({ error: "Squawk intake not configured" }, { status: 500 });
@@ -46,7 +54,8 @@ export async function POST(req: Request) {
         reporter: profile.full_name || profile.email || "michael",
         text,
         lead_id,
-        image_path,
+        image_path, // legacy single (newline-joined) — kept for back-compat
+        image_paths, // canonical N-image array the engine reads
       }),
     });
     if (r.ok) {

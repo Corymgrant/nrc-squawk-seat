@@ -20,10 +20,18 @@ type Ticket = {
   status_updated_at?: string | null;
   image_path?: string | null;
   image_url?: string | null;
+  image_urls?: string[] | null;
   notes: SquawkNote[];
 };
 type Role = "owner" | "sales_rep";
 type Tab = "report" | "teach" | "practice";
+type Attachment = {
+  id: string;
+  path: string | null; // storage path once uploaded
+  preview: string; // objectURL, then swapped to signed URL
+  uploading: boolean;
+  err: string | null;
+};
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const OK_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "image/heic"];
@@ -109,6 +117,7 @@ export function SquawkConsole({
             created_at: t.created_at,
             status_updated_at: t.status_updated_at ?? null,
             image_url: t.image_url,
+            image_urls: t.image_urls ?? (t.image_url ? [t.image_url] : []),
             notes: t.notes,
           }))}
           onExpand={setExpanded}
@@ -140,61 +149,81 @@ function ReportForm({ onDone }: { onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // image attachment
-  const [imgPath, setImgPath] = useState<string | null>(null);
-  const [imgPreview, setImgPreview] = useState<string | null>(null);
-  const [imgUploading, setImgUploading] = useState(false);
+  // image attachments — N screenshots per ticket (no artificial cap)
   const [imgErr, setImgErr] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const uploading = attachments.some((a) => a.uploading);
 
-  async function handleFile(file: File) {
-    setImgErr(null);
-    if (!OK_TYPES.includes(file.type)) {
-      setImgErr("Images only (png, jpg, webp, gif, heic).");
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setImgErr("Image too large (max 10MB).");
-      return;
-    }
-    setImgPreview(URL.createObjectURL(file));
-    setImgUploading(true);
+  function updateAttachment(id: string, patch: Partial<Attachment>) {
+    setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  }
+
+  async function uploadOne(att: Attachment, file: File) {
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/squawk/upload", { method: "POST", body: fd });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Upload failed");
-      setImgPath(j.path);
-      if (j.signed_url) setImgPreview(j.signed_url);
+      updateAttachment(att.id, {
+        path: j.path,
+        uploading: false,
+        preview: j.signed_url || att.preview,
+      });
     } catch (e: unknown) {
-      setImgErr(e instanceof Error ? e.message : "Upload failed");
-      setImgPreview(null);
-      setImgPath(null);
-    } finally {
-      setImgUploading(false);
+      updateAttachment(att.id, {
+        uploading: false,
+        err: e instanceof Error ? e.message : "Upload failed",
+      });
+    }
+  }
+
+  function handleFiles(files: File[] | FileList | null) {
+    if (!files) return;
+    setImgErr(null);
+    for (const file of Array.from(files)) {
+      if (!OK_TYPES.includes(file.type)) {
+        setImgErr("Images only (png, jpg, webp, gif, heic).");
+        continue;
+      }
+      if (file.size > MAX_BYTES) {
+        setImgErr(`"${file.name}" is too large (max 10MB).`);
+        continue;
+      }
+      const att: Attachment = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        path: null,
+        preview: URL.createObjectURL(file),
+        uploading: true,
+        err: null,
+      };
+      setAttachments((prev) => [...prev, att]);
+      void uploadOne(att, file);
     }
   }
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+    handleFiles(e.dataTransfer.files);
   }
 
   function onPaste(e: React.ClipboardEvent) {
-    const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith("image/"));
-    if (item) {
-      const file = item.getAsFile();
-      if (file) handleFile(file);
-    }
+    const files = Array.from(e.clipboardData.items)
+      .filter((i) => i.type.startsWith("image/"))
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => !!f);
+    if (files.length) handleFiles(files);
   }
 
-  function clearImage() {
-    setImgPath(null);
-    setImgPreview(null);
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function clearImages() {
+    setAttachments([]);
     setImgErr(null);
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -212,7 +241,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
         body: JSON.stringify({
           text,
           lead_id: leadId || undefined,
-          image_path: imgPath || undefined,
+          image_paths: attachments.map((a) => a.path).filter((p): p is string => !!p),
         }),
       });
       const j = await res.json();
@@ -220,7 +249,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
       setReply(j.reply || "Got it — looking into this.");
       setText("");
       setLeadId("");
-      clearImage();
+      clearImages();
       onDone();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -253,9 +282,9 @@ function ReportForm({ onDone }: { onDone: () => void }) {
             />
           </div>
 
-          {/* Image drop zone */}
+          {/* Image drop zone — attach as many screenshots as you like */}
           <div className="grid gap-2">
-            <Label>Screenshot (optional)</Label>
+            <Label>Screenshots (optional)</Label>
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -264,50 +293,65 @@ function ReportForm({ onDone }: { onDone: () => void }) {
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
               onPaste={onPaste}
-              className={`rounded-md border border-dashed p-4 text-center text-sm transition-colors ${
+              className={`flex flex-col items-center gap-3 rounded-md border border-dashed p-4 text-center text-sm transition-colors ${
                 dragOver ? "border-foreground bg-foreground/5" : "border-input text-muted-foreground"
               }`}
             >
-              {imgPreview ? (
-                <div className="flex flex-col items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imgPreview}
-                    alt="Attachment preview"
-                    className="max-h-40 rounded-md border border-input object-contain"
-                  />
-                  <div className="flex items-center gap-3 text-xs">
-                    {imgUploading ? (
-                      <span className="text-muted-foreground">Uploading…</span>
-                    ) : imgPath ? (
-                      <span className="text-green-600">✓ Attached</span>
-                    ) : null}
-                    <button type="button" onClick={clearImage} className="text-red-500 underline">
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <span>Drag &amp; drop, paste, or</span>
-                  <button
-                    type="button"
-                    onClick={() => fileInput.current?.click()}
-                    className="rounded-md border border-input px-3 py-1.5 text-foreground hover:bg-foreground/5"
-                  >
-                    Choose image
-                  </button>
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-3">
+                  {attachments.map((a) => (
+                    <div key={a.id} className="flex flex-col items-center gap-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={a.preview}
+                        alt="Attachment preview"
+                        className="max-h-28 rounded-md border border-input object-contain"
+                      />
+                      <div className="flex items-center gap-2 text-xs">
+                        {a.uploading ? (
+                          <span className="text-muted-foreground">Uploading…</span>
+                        ) : a.err ? (
+                          <span className="text-red-500">{a.err}</span>
+                        ) : a.path ? (
+                          <span className="text-green-600">✓</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(a.id)}
+                          className="text-red-500 underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+              <div className="flex flex-col items-center gap-2">
+                <span>
+                  {attachments.length > 0
+                    ? "Drag, paste, or add more"
+                    : "Drag & drop, paste, or"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  className="rounded-md border border-input px-3 py-1.5 text-foreground hover:bg-foreground/5"
+                >
+                  {attachments.length > 0 ? "Add images" : "Choose images"}
+                </button>
+              </div>
               <input
                 ref={fileInput}
                 type="file"
                 accept="image/*"
+                multiple
                 capture="environment"
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
+                  handleFiles(e.target.files);
+                  // allow re-picking the same file(s)
+                  if (fileInput.current) fileInput.current.value = "";
                 }}
               />
             </div>
@@ -323,7 +367,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
             <div className="rounded-md border border-green-600/30 bg-green-600/10 p-3 text-sm">✅ {reply}</div>
           )}
           {err && <p className="text-sm text-red-500">{err}</p>}
-          <Button type="submit" disabled={loading || imgUploading || !text.trim()}>
+          <Button type="submit" disabled={loading || uploading || !text.trim()}>
             {loading ? "Sending…" : "Send report"}
           </Button>
         </form>
@@ -534,15 +578,23 @@ function RecentReports({
                 {role === "owner" && t.reporter && (
                   <span className="text-xs text-muted-foreground">from {t.reporter}</span>
                 )}
-                {t.image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={t.image_url}
-                    alt="Report attachment"
-                    onClick={() => onExpand(t.image_url!)}
-                    className="mt-1 max-h-24 w-fit cursor-pointer rounded-md border border-input object-cover"
-                  />
-                )}
+                {(() => {
+                  const urls = t.image_urls?.length ? t.image_urls : t.image_url ? [t.image_url] : [];
+                  return urls.length ? (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {urls.map((u, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={i}
+                          src={u}
+                          alt={`Report attachment ${i + 1}`}
+                          onClick={() => onExpand(u)}
+                          className="max-h-24 w-fit cursor-pointer rounded-md border border-input object-cover"
+                        />
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
                 {t.reply && <span className="text-sm text-muted-foreground">↳ {t.reply}</span>}
               </li>
             ))}

@@ -47,6 +47,7 @@ type Ticket = {
   lead_id: string | null;
   image_path: string | null;
   image_url: string | null;
+  image_urls?: string[] | null;
   status: string;
   created_at: string;
   resolved_at: string | null;
@@ -200,22 +201,29 @@ export function SquawkManager({
               </span>
             </div>
 
-            {t.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={t.image_url}
-                alt="attachment"
-                onClick={() => setExpanded(t.image_url)}
-                style={{
-                  marginTop: 6,
-                  maxHeight: 90,
-                  borderRadius: 8,
-                  border: `1px solid ${C.line}`,
-                  cursor: "pointer",
-                  objectFit: "cover",
-                }}
-              />
-            )}
+            {(() => {
+              const urls = t.image_urls?.length ? t.image_urls : t.image_url ? [t.image_url] : [];
+              return urls.length ? (
+                <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {urls.map((u, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={u}
+                      alt={`attachment ${i + 1}`}
+                      onClick={() => setExpanded(u)}
+                      style={{
+                        maxHeight: 90,
+                        borderRadius: 8,
+                        border: `1px solid ${C.line}`,
+                        cursor: "pointer",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null;
+            })()}
 
             {t.reply && (
               <div style={{ marginTop: 6, fontSize: 12.5, color: C.muted, paddingLeft: 10, borderLeft: `2px solid ${C.line}` }}>

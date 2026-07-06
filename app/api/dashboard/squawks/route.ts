@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/profile";
-import {
-  createAdminClient,
-  SQUAWK_IMAGES_BUCKET,
-  SIGNED_URL_TTL,
-} from "@/lib/supabase/admin";
+import { createAdminClient, signImagePaths } from "@/lib/supabase/admin";
 
 // Owner-only squawk-ticket management for the operator console. Reads the FULL
 // squawk_tickets rows (no truncation — the whole point) and performs reversible
@@ -49,14 +45,8 @@ export async function GET(req: Request) {
 
   const withUrls = await Promise.all(
     (tickets ?? []).map(async (t) => {
-      let image_url: string | null = null;
-      if (t.image_path) {
-        const { data } = await admin.storage
-          .from(SQUAWK_IMAGES_BUCKET)
-          .createSignedUrl(t.image_path, SIGNED_URL_TTL);
-        image_url = data?.signedUrl ?? null;
-      }
-      return { ...t, image_url };
+      const image_urls = await signImagePaths(admin, t.image_path);
+      return { ...t, image_url: image_urls[0] ?? null, image_urls };
     }),
   );
 
