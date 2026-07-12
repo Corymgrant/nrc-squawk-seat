@@ -4,6 +4,7 @@ import { createAdminClient, signImagePaths } from "@/lib/supabase/admin";
 import { getSessionProfile } from "@/lib/profile";
 import { SquawkConsole } from "@/components/squawk-console";
 import { SystemsStatus } from "@/components/systems-status";
+import { ApprenticePanel } from "@/components/apprentice-panel";
 import { LogoutButton } from "@/components/logout-button";
 
 
@@ -58,6 +59,19 @@ export default async function SeatPage() {
     }),
   );
 
+  // Apprentice window (job 663): read-only draft-vs-sent pairs + progress, org-scoped by RLS.
+  // Zero workload by construction; framing is apprentice-only (MICHAEL-SEAT-DOCTRINE).
+  const { data: scored } = await supabase
+    .from("shadow_draft_ledger")
+    .select("id,category,inbound_excerpt,shadow_draft,sent_reply,similarity,drafted_at")
+    .not("similarity", "is", null)
+    .order("drafted_at", { ascending: false })
+    .limit(300);
+  const { count: pendingCount } = await supabase
+    .from("shadow_draft_ledger")
+    .select("id", { count: "exact", head: true })
+    .is("similarity", null);
+
   return (
     <div className="flex flex-col gap-6">
       <SystemsStatus />
@@ -66,6 +80,13 @@ export default async function SeatPage() {
         fullName={profile.full_name ?? profile.email ?? "there"}
         tickets={withUrls}
       />
+      {scored && scored.length > 0 && (
+        <ApprenticePanel
+          pairs={scored}
+          pendingCount={pendingCount ?? 0}
+          totalStudied={scored.length}
+        />
+      )}
     </div>
   );
 }
