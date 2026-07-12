@@ -6,6 +6,7 @@ import { SquawkConsole } from "@/components/squawk-console";
 import { SystemsStatus } from "@/components/systems-status";
 import { ApprenticePanel } from "@/components/apprentice-panel";
 import { LogoutButton } from "@/components/logout-button";
+import { activeKit } from "@/lib/kit-config";
 
 
 export default async function SeatPage() {
@@ -72,14 +73,40 @@ export default async function SeatPage() {
     .select("id", { count: "exact", head: true })
     .is("similarity", null);
 
+  const kit = activeKit;
+  const firstName = (profile.full_name ?? profile.email ?? "there").split(/[\s@]/)[0];
+
   return (
     <div className="flex flex-col gap-6">
+      {/* ── Cockpit hero band — the reveal greeting ─────────────────────── */}
+      <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 p-6 sm:p-7">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full blur-3xl"
+          style={{ background: `${kit.accent}22` }}
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              {kit.product} · {kit.seatLabel}
+            </p>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
+              Hi {firstName} <span className="align-middle">👋</span>
+            </h1>
+            <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
+              Your cockpit for the day — flag anything that&apos;s off, teach the assistant how
+              you&apos;d handle it, and see how it&apos;s coming along. You&apos;re always the one
+              who talks to customers.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            Sales Rep
+          </span>
+        </div>
+      </section>
+
       <SystemsStatus />
-      <SquawkConsole
-        role={profile.role}
-        fullName={profile.full_name ?? profile.email ?? "there"}
-        tickets={withUrls}
-      />
+      <SquawkConsole role={profile.role} tickets={withUrls} />
       {scored && scored.length > 0 && (
         <ApprenticePanel
           pairs={scored}

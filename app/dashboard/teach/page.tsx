@@ -37,7 +37,7 @@ export default async function TeachPage() {
         ← back to console
       </Link>
       <div style={{ marginTop: 14 }}>
-        <SquawkConsole role={profile.role} fullName={profile.full_name ?? profile.email ?? "Cory"} tickets={withUrls} />
+        <SquawkConsole role={profile.role} tickets={withUrls} />
       </div>
     </div>
   );

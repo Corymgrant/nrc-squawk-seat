@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { TeachSandbox } from "@/components/teach-sandbox";
 import { SquawkFeed, type SquawkNote } from "@/components/squawk-feed";
 
@@ -41,11 +40,9 @@ const textareaClass =
 
 export function SquawkConsole({
   role,
-  fullName,
   tickets,
 }: {
   role: Role;
-  fullName: string;
   tickets: Ticket[];
 }) {
   const router = useRouter();
@@ -54,16 +51,14 @@ export function SquawkConsole({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-center gap-2">
+        <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />
         <div>
-          <h1 className="text-2xl font-bold">Hi {fullName} 👋</h1>
+          <h2 className="text-lg font-semibold leading-tight">Report or teach</h2>
           <p className="text-muted-foreground text-sm">
-            Report a problem or teach the assistant how it should respond.
+            Flag a problem, or show the assistant how you&apos;d handle it.
           </p>
         </div>
-        <Badge variant={role === "owner" ? "default" : "secondary"}>
-          {role === "owner" ? "Owner" : "Sales Rep"}
-        </Badge>
       </header>
 
       {/* Tab switcher */}
