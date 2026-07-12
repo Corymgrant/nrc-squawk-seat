@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { activeKit } from "@/lib/kit-config";
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
@@ -36,9 +37,16 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background text-lg font-bold">C</span>
-        <h1 className="text-xl font-semibold">Cockpit · Squawk Seat</h1>
-        <p className="text-sm text-muted-foreground">NoRepairCost</p>
+        <span
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-lg font-bold text-primary-foreground"
+          style={{ background: activeKit.accent, boxShadow: `0 0 24px -6px ${activeKit.accent}` }}
+        >
+          {activeKit.monogram}
+        </span>
+        <h1 className="text-xl font-semibold">
+          {activeKit.product} <span className="text-muted-foreground font-normal">· {activeKit.seatLabel}</span>
+        </h1>
+        <p className="text-sm text-muted-foreground">{activeKit.brand}</p>
       </div>
       <Card>
         <CardHeader>
