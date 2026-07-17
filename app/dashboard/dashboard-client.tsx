@@ -377,6 +377,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const content = panels?.content ?? {};
   const squawk = panels?.squawk ?? {};
   const ks = panels?.keystone ?? {}; // sequencer keystone (highest-leverage Cory move)
+  const econ = panels?.economics ?? {}; // Economics tile (job 828) — spend/leads/sales/GCP/close%/CAC, auto-pulled
 
   // Close rate + all-time milestone now ship at the TOP LEVEL of the leads
   // panel (backend: data.get_close_summary — Cory's 2026-06-30 directive =
@@ -685,6 +686,40 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         )}
         <NoteThread itemType="lead" itemRef="pipeline" itemLabel="Leads & quotes" notes={notes} onPosted={loadNotes} />
       </div>
+
+      {/* 4.5 — Economics (job 828): monthly pace, auto-pulled from Close + Meta,
+          never typed by hand. MTD prorated to a monthly pace by days-elapsed;
+          close rate is the matured 90d cohort, not an MTD ratio (recent quotes
+          haven't had time to close yet, so an MTD ratio understates it). */}
+      {!econ.no_data && (
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={label}>Economics · monthly pace</span>
+            <span style={{ ...label, color: C.muted }}>
+              {econ.mtd?.days_elapsed}/{econ.mtd?.days_in_month} days
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 18, marginTop: 8, flexWrap: "wrap" }}>
+            <Stat k="Policies/mo" v={econ.prorated_monthly_pace?.policies_per_mo != null ? String(econ.prorated_monthly_pace.policies_per_mo) : "—"} />
+            <Stat k="GCP/mo" v={money(econ.prorated_monthly_pace?.gcp_per_mo)} />
+            <Stat
+              k="Close rate"
+              v={econ.close_rate_cohort_pct != null ? `${num(econ.close_rate_cohort_pct, 1)}%` : "—"}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap" }}>
+            <Stat k="CAC/policy" v={money(econ.cac_per_policy)} sm />
+            <Stat k="Comm. ROAS" v={econ.commission_roas != null ? `${num(econ.commission_roas, 2)}x` : "—"} sm />
+            <Stat k="Avg GCP" v={money(econ.mtd?.avg_gcp)} sm />
+          </div>
+          <div style={{ ...label, marginTop: 8 }}>
+            {econ.mtd?.won_count != null
+              ? `${Number(econ.mtd.won_count).toLocaleString()} won MTD · $${Number(econ.spend?.spend_per_mo_pace ?? 0).toLocaleString()}/mo spend pace (${econ.close_rate_cohort_window || ""} cohort)`
+              : ""}
+          </div>
+          <NoteThread itemType="economics" itemRef="economics-monthly" itemLabel="Economics · monthly pace" notes={notes} onPosted={loadNotes} />
+        </div>
+      )}
 
       {/* 5 — ad spend + frequency + per-ad rotation */}
       <div style={card}>
