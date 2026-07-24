@@ -55,6 +55,33 @@ const card: React.CSSProperties = {
 };
 const label: React.CSSProperties = { color: C.muted, fontSize: 12.5, fontWeight: 500 };
 
+// job #1048 — flywheel reason capture: quick-pick chips so a reject carries
+// WHY into human_notes (feeds creative_review_ledger -> brand-soul corpus ->
+// future generation prompts). Chips just fill the freeform note field below;
+// nothing here is required — approve stays one-tap friction-free.
+const REJECT_REASON_CHIPS = [
+  "RV looks old/dated",
+  "wrong face / continuity",
+  "text illegible at feed size",
+  "off-brand framing",
+  "compliance concern",
+];
+const APPROVE_CHIPS = ["great framing", "modern rig", "strong hook", "clean/on-brand"];
+
+function chipStyle(kind: "reject" | "approve"): React.CSSProperties {
+  const col = kind === "reject" ? C.red : C.emerald;
+  return {
+    cursor: "pointer",
+    border: `1px solid ${col}55`,
+    background: kind === "approve" ? `${col}14` : "transparent",
+    color: col,
+    borderRadius: 999,
+    fontSize: 10.5,
+    fontWeight: 600,
+    padding: "3px 8px",
+  };
+}
+
 /* Prefer the Drive copy when present — served through our owner-gated pixel
    proxy (the Drive files are not link-shared, and drive.google.com URLs die on
    third-party-cookie blocking). Fall back to the render preview_url. A broken
@@ -476,6 +503,40 @@ export function CreativesPanel() {
                   </button>
                 );
               })}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+              {REJECT_REASON_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() =>
+                    setNotes((p) => {
+                      const cur = p[open.id] ?? "";
+                      return { ...p, [open.id]: cur ? `${cur}; ${chip}` : chip };
+                    })
+                  }
+                  style={chipStyle("reject")}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+              {APPROVE_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() =>
+                    setNotes((p) => {
+                      const cur = p[open.id] ?? "";
+                      return { ...p, [open.id]: cur ? `${cur}; ${chip}` : chip };
+                    })
+                  }
+                  style={chipStyle("approve")}
+                >
+                  {chip}
+                </button>
+              ))}
             </div>
             <textarea
               value={notes[open.id] ?? ""}
