@@ -22,6 +22,16 @@ type Pair = {
   drafted_at: string;
 };
 
+// job 1455: shadow drafts that failed the internal quality check carry a leading
+// "[NEEDS REVIEW - ...]" self-critique banner (reply_quality.py's own convention,
+// meant for a human editing a real draft before send). This panel is read-only
+// "curiosity" surface with no send/edit step, so the raw banner reads as broken
+// gibberish rather than a helpful flag — strip it before it's ever shown.
+const REVIEW_BANNER_RE = /^\s*\[(?:NEEDS REVIEW|FRONTIER CRITIC BOUNCE)[^\]]*\]\s*/i;
+function cleanDraft(text: string): string {
+  return (text || "").replace(REVIEW_BANNER_RE, "").trim();
+}
+
 // qualitative match band — we never show a raw percentage that could read as a grade
 function band(sim: number | null): { label: string; tone: string; dot: string } {
   const s = sim ?? 0;
@@ -230,7 +240,7 @@ export function ApprenticePanel({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <div className="mb-1 text-[11px] font-medium text-muted-foreground">Your apprentice&apos;s try</div>
-                        <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">{p.shadow_draft}</p>
+                        <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">{cleanDraft(p.shadow_draft)}</p>
                       </div>
                       <div>
                         <div className="mb-1 text-[11px] font-medium text-muted-foreground">What you sent</div>
