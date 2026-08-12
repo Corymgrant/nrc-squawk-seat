@@ -152,11 +152,17 @@ export function CreativesPanel() {
   const [broken, setBroken] = useState<Set<number>>(new Set()); // rows whose Drive thumb 404'd
   // draft notes per row — Cory's OWN words, never pre-filled with AI text
   const [notes, setNotes] = useState<Record<number, string>>({});
+  // job #1050 — critic default view is borderline + this week's ~5-item audit
+  // sample only (clear-pass rows the critic already cleared stay out of your
+  // way); flip this to see every row, including critic-approved-not-sampled
+  // and machine auto-rejects (both reversible — nothing here is deleted).
+  const [seeAll, setSeeAll] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
     try {
-      const res = await fetch("/api/dashboard/creatives", { cache: "no-store" });
+      const qs = seeAll ? "?include_hidden=1" : "";
+      const res = await fetch(`/api/dashboard/creatives${qs}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
       const rows: Creative[] = j?.creatives ?? [];
@@ -174,7 +180,7 @@ export function CreativesPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [seeAll]);
 
   useEffect(() => {
     load();
@@ -219,9 +225,30 @@ export function CreativesPanel() {
           {fresh > 0 ? `${fresh} pending review` : "all reviewed"}
         </div>
       </div>
-      <div style={{ ...label, marginTop: 2 }}>
-        Tap a thumbnail for full size. Approve / Reject is YOUR verdict — it trains the creative
-        engine.
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ ...label, marginTop: 2 }}>
+          Tap a thumbnail for full size. Approve / Reject is YOUR verdict — it trains the creative
+          engine.
+        </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            cursor: "pointer",
+            ...label,
+            whiteSpace: "nowrap",
+          }}
+          title="Default view = borderline + this week's ~5-item audit sample only (job #1050 critic). Toggle to see everything, including critic-approved-not-sampled and machine auto-rejects."
+        >
+          <input
+            type="checkbox"
+            checked={seeAll}
+            onChange={(e) => setSeeAll(e.target.checked)}
+            style={{ cursor: "pointer" }}
+          />
+          see all
+        </label>
       </div>
 
       {loading && <div style={{ ...label, marginTop: 12 }}>Loading…</div>}
@@ -391,10 +418,12 @@ export function CreativesPanel() {
         </div>
       ))}
 
-      {!loading && hiddenCount > 0 && (
+      {!loading && hiddenCount > 0 && !seeAll && (
         <div style={{ ...label, marginTop: 12, fontSize: 11.5 }}>
-          {hiddenCount} older / duplicate assets hidden from this view (voided duplicates +
-          pre-restyle look-alike batches). Nothing deleted — reversible filter.
+          {hiddenCount} assets hidden from this view — voided duplicates, pre-restyle look-alike
+          batches, machine auto-rejects (job #1049/#1050 pre-review critic, reasons in each row's
+          AI-metadata notes), and critic-approved renders not in this week's audit sample. Nothing
+          deleted — check &ldquo;see all&rdquo; above to view everything.
         </div>
       )}
 

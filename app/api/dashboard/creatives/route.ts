@@ -20,8 +20,13 @@ export async function GET(req: Request) {
   if (!BASE || !TOKEN) {
     return NextResponse.json({ error: "Owner API not configured" }, { status: 500 });
   }
-  const status = new URL(req.url).searchParams.get("status");
-  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const params = new URL(req.url).searchParams;
+  const status = params.get("status");
+  const includeHidden = params.get("include_hidden");
+  const qparts: string[] = [];
+  if (status) qparts.push(`status=${encodeURIComponent(status)}`);
+  if (includeHidden) qparts.push(`include_hidden=${encodeURIComponent(includeHidden)}`);
+  const qs = qparts.length ? `?${qparts.join("&")}` : "";
   try {
     const r = await fetch(`${BASE}/creatives${qs}`, {
       headers: { "X-Tasks-Token": TOKEN },
