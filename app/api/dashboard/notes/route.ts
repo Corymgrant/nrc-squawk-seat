@@ -38,6 +38,31 @@ export async function GET(req: Request) {
   }
 }
 
+// job 1885: generic 'handled' ack — distinct from an /answer reply. Covers the
+// open -> in-flight -> handled lifecycle for cockpit-row / freeform items that
+// just need a tap, not a written response.
+export async function PATCH(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.err;
+  let body: { id?: number; note?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  }
+  if (!body.id) return NextResponse.json({ error: "Note id required" }, { status: 422 });
+  try {
+    const r = await fetch(`${BASE}/notes/${body.id}/ack`, {
+      method: "POST",
+      headers: { "X-Tasks-Token": TOKEN!, "Content-Type": "application/json" },
+      body: JSON.stringify({ note: body.note || "" }),
+    });
+    return NextResponse.json(await r.json(), { status: r.ok ? 200 : r.status });
+  } catch (e) {
+    return NextResponse.json({ error: `Cockpit unreachable: ${e}` }, { status: 502 });
+  }
+}
+
 // Create a note on an item.
 export async function POST(req: Request) {
   const g = await gate();

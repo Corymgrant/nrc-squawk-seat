@@ -6,6 +6,7 @@ import { CreativesPanel } from "@/components/creatives-panel";
 import { OpportunitiesBoard } from "@/components/opportunities-board";
 import { SquawkManager } from "@/components/squawk-manager";
 import { MetaPanel } from "@/components/meta-panel";
+import { AccountingPanel } from "@/components/accounting-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -45,6 +46,8 @@ type Note = {
   answer_body: string | null;
   created_at: string;
   answered_at: string | null;
+  acked_at?: string | null;
+  ack_note?: string | null;
 };
 
 type DrillItem = {
@@ -125,6 +128,7 @@ function NoteThread({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ackBusy, setAckBusy] = useState<number | null>(null);
   const mine = notes.filter((n) => n.item_ref === itemRef);
 
   async function post() {
@@ -144,6 +148,22 @@ function NoteThread({
     }
   }
 
+  // job 1885: one-tap ack — open -> handled, no reply required. Any item Cory
+  // has acked must never keep showing/paging as open.
+  async function ack(noteId: number) {
+    setAckBusy(noteId);
+    try {
+      await fetch("/api/dashboard/notes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: noteId }),
+      });
+      onPosted();
+    } finally {
+      setAckBusy(null);
+    }
+  }
+
   return (
     <div style={{ marginTop: 10 }}>
       {mine.map((n) => (
@@ -152,13 +172,27 @@ function NoteThread({
             <span style={{ color: C.muted }}>note · </span>
             {n.body}
           </div>
-          {n.answer_body ? (
+          {n.status === "handled" ? (
+            <div style={{ marginTop: 5, paddingLeft: 10, borderLeft: `2px solid ${C.emerald}`, color: C.text, fontSize: 13 }}>
+              <span style={{ color: C.emerald, fontWeight: 600 }}>✓ handled · </span>
+              {n.ack_note || "Acknowledged."}
+            </div>
+          ) : n.answer_body ? (
             <div style={{ marginTop: 5, paddingLeft: 10, borderLeft: `2px solid ${C.emerald}`, color: C.text, fontSize: 13 }}>
               <span style={{ color: C.emerald, fontWeight: 600 }}>answer · </span>
               {n.answer_body}
             </div>
           ) : (
-            <div style={{ marginTop: 3, fontSize: 11.5, color: C.amber }}>awaiting answer</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
+              <span style={{ fontSize: 11.5, color: C.amber }}>awaiting answer</span>
+              <button
+                onClick={() => ack(n.id)}
+                disabled={ackBusy === n.id}
+                style={{ ...btn("transparent", C.emerald), padding: "2px 8px", fontSize: 11 }}
+              >
+                {ackBusy === n.id ? "…" : "✓ mark handled"}
+              </button>
+            </div>
           )}
         </div>
       ))}
@@ -224,8 +258,10 @@ function ItemRow({
 }) {
   const [open, setOpen] = useState(false);
   const mine = notes.filter((n) => n.item_ref === itemRef);
-  const openCount = mine.filter((n) => n.status !== "answered").length;
-  const answered = mine.some((n) => n.status === "answered");
+  // job 1885: 'handled' is a tap-ack, closes the item the same as a written 'answered'
+  // reply — an acked item must never keep reading as open across the dashboard.
+  const openCount = mine.filter((n) => n.status !== "answered" && n.status !== "handled").length;
+  const answered = mine.some((n) => n.status === "answered" || n.status === "handled");
   const dotColor = openCount ? C.amber : answered ? C.emerald : null;
 
   return (
@@ -314,6 +350,10 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   const [drill, setDrill] = useState<string | null>(null); // "done" | "in_flight" | "blocked" | null
   const [ksOpen, setKsOpen] = useState(false); // keystone downstream expand
   const [corr, setCorr] = useState<CorrData | null>(null); // "Teach the Assistant" flywheel
+  // job 1885: tabs per business category — sections are tagged data-tab="..." and
+  // shown/hidden by CSS keyed off data-active-tab on the .cockpit-cols wrapper
+  // (see the <style> block below). Additive: no section's own JSX/logic changed.
+  const [activeTab, setActiveTab] = useState<"ops" | "creative" | "accounting" | "squawk">("ops");
 
   const loadNotes = useCallback(async () => {
     try {
@@ -433,14 +473,62 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         </div>
       )}
 
+      {/* job 1885 — tabs per business category. CSS-only show/hide (no section
+          unmounts, no data refetch on switch) keyed off data-active-tab. */}
+      <style>{`
+        .cockpit-cols > [data-tab] { display: none; }
+        .cockpit-cols[data-active-tab="ops"] > [data-tab="ops"] { display: block; }
+        .cockpit-cols[data-active-tab="creative"] > [data-tab="creative"] { display: block; }
+        .cockpit-cols[data-active-tab="accounting"] > [data-tab="accounting"] { display: block; }
+        .cockpit-cols[data-active-tab="squawk"] > [data-tab="squawk"] { display: block; }
+      `}</style>
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          marginBottom: 12,
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: C.bg,
+          paddingBottom: 4,
+        }}
+      >
+        {(
+          [
+            ["ops", "Ops"],
+            ["creative", "Creative"],
+            ["accounting", "Accounting"],
+            ["squawk", "Squawk"],
+          ] as const
+        ).map(([key, tlabel]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            style={{
+              flex: 1,
+              padding: "9px 4px",
+              borderRadius: 12,
+              border: `1px solid ${activeTab === key ? C.emerald : C.line}`,
+              background: activeTab === key ? "#12251d" : C.card,
+              color: activeTab === key ? C.emerald : C.muted,
+              fontSize: 12.5,
+              fontWeight: 600,
+            }}
+          >
+            {tlabel}
+          </button>
+        ))}
+      </div>
+
       {/* JOB 327 — desktop-responsive masonry: on laptop/wide screens the
           stacked cards flow into 2–3 columns (each column is still ≥440px, so
           nothing is narrower than the mobile view). Below 1000px this is a
           plain block wrapper → the single-column mobile layout is unchanged. */}
-      <div className="cockpit-cols">
+      <div className="cockpit-cols" data-active-tab={activeTab}>
       {/* 0 — KEYSTONE: the single highest-leverage Cory move (sequencer) */}
       {ks.keystone ? (
-        <div style={{ ...card, borderColor: C.amber }}>
+        <div data-tab="ops" style={{ ...card, borderColor: C.amber }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ ...label, color: C.amber }}>🎯 Do this next</span>
             <span style={{ ...label, color: C.amber }}>unlocks {ks.n}</span>
@@ -480,14 +568,14 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <NoteThread itemType="build" itemRef="keystone" itemLabel="Keystone — do this next" notes={notes} onPosted={loadNotes} />
         </div>
       ) : ks.all_clear ? (
-        <div style={{ ...card, borderColor: C.emerald }}>
+        <div data-tab="ops" style={{ ...card, borderColor: C.emerald }}>
           <span style={{ ...label, color: C.emerald }}>🎯 Do this next</span>
           <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>No blockers — all clear.</div>
         </div>
       ) : null}
 
       {/* Notes / Ask inbox */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={label}>Notes / Ask</span>
           <span style={{ ...label, color: openCount ? C.amber : C.muted }}>{openCount} open</span>
@@ -507,7 +595,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 1 — hero build % + tappable drill-down */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <span style={label}>Build completion</span>
         <div style={{ ...big, fontSize: 48, marginTop: 2 }}>{b.pct != null ? `${num(b.pct, 1)}%` : "—"}</div>
         <div style={{ height: 7, background: "#0c0f10", borderRadius: 5, marginTop: 8, overflow: "hidden" }}>
@@ -581,7 +669,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 2 — in progress (each row expandable w/ its own note) */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <span style={label}>In progress</span>
         <div style={{ marginTop: 8 }}>
           {(b.in_progress ?? []).length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>—</div>}
@@ -604,7 +692,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 3 — shipped this week (each item expandable w/ its own note) */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={label}>Shipped this week</span>
           <span style={{ ...label, color: C.emerald }}>{ship.shipped_count ?? "—"}</span>
@@ -639,7 +727,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 4 — leads & quotes */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <span style={label}>Leads &amp; quotes · month-to-date</span>
         <div style={{ display: "flex", gap: 18, marginTop: 8, flexWrap: "wrap" }}>
           <Stat k="Won" v={leads.won_count != null ? String(leads.won_count) : "—"} />
@@ -692,7 +780,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           close rate is the matured 90d cohort, not an MTD ratio (recent quotes
           haven't had time to close yet, so an MTD ratio understates it). */}
       {!econ.no_data && (
-        <div style={card}>
+        <div data-tab="accounting" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={label}>Economics · monthly pace</span>
             <span style={{ ...label, color: C.muted }}>
@@ -722,7 +810,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       )}
 
       {/* 5 — ad spend + frequency + per-ad rotation */}
-      <div style={card}>
+      <div data-tab="creative" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={label}>Ad spend today</span>
           <span
@@ -808,10 +896,12 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 5b — Meta ads review (live Graph API, read-only, per-campaign notes) */}
-      <MetaPanel notes={notes} onNotePosted={loadNotes} />
+      <div data-tab="creative">
+        <MetaPanel notes={notes} onNotePosted={loadNotes} />
+      </div>
 
       {/* 6 — systems */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <span style={label}>Systems</span>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
           {(health.subsystems ?? []).map((s: { label: string; health: string; status: string }) => (
@@ -836,7 +926,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 7 — flywheel edit rate (Michael + Erika) */}
-      <div style={card}>
+      <div data-tab="squawk" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={label}>Flywheel edit rate · Michael</span>
           <span style={{ fontSize: 11.5, color: trendColor(fly.trend_direction) }}>
@@ -873,7 +963,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 7a — Drafter Maturity gauge · email auto-answer readiness (READ-ONLY; nothing fires) */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={label}>Drafter Maturity · auto-answer readiness</span>
           <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>GAUGE · READ-ONLY</span>
@@ -937,7 +1027,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           Close CALL task for Michael + stage his email fallback draft; this panel watches
           volume by scenario, call-through rate and conversion — the dataset that says
           when the voice agent can graduate onto these calls. READ-ONLY. */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={label}>Michael Calls · voice-agent graduation</span>
           <span style={{ fontSize: 10.5, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 4, padding: "1px 5px" }}>GAUGE · READ-ONLY</span>
@@ -990,7 +1080,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* 7b — Teach the Assistant flywheel (corrections from the rep seat) */}
-      <div style={card}>
+      <div data-tab="squawk" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={label}>Teach the Assistant · corrections</span>
           <span style={{ ...label, color: (corr?.compliance_pending_count ?? 0) ? C.amber : C.muted }}>
@@ -1082,7 +1172,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
 
       {/* 8 — content queue (read-only) */}
       {!content.no_data && ((content.items ?? []).length > 0 || (content.summary?.total ?? 0) > 0) && (
-        <div style={card}>
+        <div data-tab="creative" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={label}>Content queue</span>
             <span style={{ ...label, color: (content.summary?.need_eyes ?? 0) ? C.amber : C.muted }}>
@@ -1113,7 +1203,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       )}
 
       {/* squawk box */}
-      <div style={card}>
+      <div data-tab="squawk" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={label}>Squawk Box</span>
           <span style={label}>{squawk.count ?? 0}</span>
@@ -1148,13 +1238,22 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
 
       {/* squawk tickets — full-text read + manage (resolve/archive/dismiss/edit) */}
-      <SquawkManager notes={notes} onNotePosted={loadNotes} />
+      <div data-tab="squawk">
+        <SquawkManager notes={notes} onNotePosted={loadNotes} />
+      </div>
 
       {/* 9 — Creative Review: thumbnails by batch+look, approve/reject → flywheel (job 347) */}
-      <CreativesPanel />
+      <div data-tab="creative">
+        <CreativesPanel />
+      </div>
+
+      {/* Accounting — cancellations / dunning-ladder ack state (job 1885) */}
+      <div data-tab="accounting">
+        <AccountingPanel />
+      </div>
 
       {/* 10 — Opportunities board: ranked findings + Approve/Deny (owner-gated, bounded) */}
-      <div style={card}>
+      <div data-tab="ops" style={card}>
         <div style={{ ...label, marginBottom: 8 }}>Opportunities · approve / deny</div>
         <OpportunitiesBoard />
       </div>

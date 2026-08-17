@@ -9,6 +9,38 @@ import { createAdminClient, signImagePaths } from "@/lib/supabase/admin";
 // used but every call is owner-gated and scoped to the owner's org_id.
 export const dynamic = "force-dynamic";
 
+// job 1885: closes the exact gap that let the 2026-08-16 Empire Warranty squawk
+// escalate at 62h as a false P1 page after Cory resolved it by hand. Before this,
+// "Resolve" only ever flipped THIS row's status — never approvals.json[nonce]
+// .status, the one field squawk_sla_alarm.py (and the rest of the squawk
+// lifecycle scripts on Cortex) actually read. Every ticket carries an
+// engine_nonce once squawk_engine.py has mirrored it here (job 1885 migration
+// 20260817_squawk_tickets_engine_nonce.sql); when present, "resolve" now also
+// bridges through Cockpit to the engine's loopback-only /resolved so the alarm
+// actually stops. notify_michael stays false — Cory already handled it himself,
+// so we don't fire a second bot email on top of whatever he told Michael/Erika
+// directly. Best-effort: if the bridge is unreachable, the Supabase-side
+// resolve still succeeds (unchanged prior behavior) — the ticket just won't be
+// ack'd on the engine side, same as before this change existed.
+const COCKPIT_BASE = process.env.COCKPIT_OWNER_API_BASE;
+const COCKPIT_TOKEN = process.env.COCKPIT_TASKS_TOKEN;
+
+async function ackEngineSquawk(engineNonce: string, summary: string) {
+  if (!COCKPIT_BASE || !COCKPIT_TOKEN) return { ok: false, error: "cockpit bridge not configured" };
+  try {
+    const r = await fetch(`${COCKPIT_BASE}/squawk/${encodeURIComponent(engineNonce)}/ack`, {
+      method: "POST",
+      headers: { "X-Tasks-Token": COCKPIT_TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ summary, cause: "owner_ack_dashboard", notify_michael: false }),
+      cache: "no-store",
+    });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok, ...j };
+  } catch (e) {
+    return { ok: false, error: `cockpit unreachable: ${e instanceof Error ? e.message : e}` };
+  }
+}
+
 const STATUSES = ["open", "resolved", "archived", "dismissed"] as const;
 type Status = (typeof STATUSES)[number];
 
@@ -31,7 +63,7 @@ export async function GET(req: Request) {
   const admin = createAdminClient();
   let q = admin
     .from("squawk_tickets")
-    .select("id,reporter,text,reply,tier,lead_id,image_path,status,created_at,resolved_at,archived_at,status_updated_at")
+    .select("id,reporter,text,reply,tier,lead_id,image_path,status,created_at,resolved_at,archived_at,status_updated_at,engine_nonce")
     .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -133,8 +165,14 @@ export async function PATCH(req: Request) {
     .update(patch)
     .eq("org_id", profile.org_id)
     .eq("id", id)
-    .select("id,status,text,resolved_at,archived_at")
+    .select("id,status,text,resolved_at,archived_at,engine_nonce")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, ticket: data });
+
+  let engineAck: Record<string, unknown> | undefined;
+  if (action === "resolve" && data?.engine_nonce) {
+    engineAck = await ackEngineSquawk(data.engine_nonce, (data.text || "").slice(0, 200));
+  }
+
+  return NextResponse.json({ ok: true, ticket: data, engine_ack: engineAck });
 }
