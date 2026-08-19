@@ -21,7 +21,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Account not provisioned" }, { status: 403 });
   }
 
-  let body: { text?: string; lead_id?: string; image_path?: string; image_paths?: string[] };
+  let body: {
+    text?: string;
+    lead_id?: string;
+    severity?: string;
+    image_path?: string;
+    image_paths?: string[];
+  };
   try {
     body = await req.json();
   } catch {
@@ -32,6 +38,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Please describe the problem." }, { status: 400 });
   }
   const lead_id = (body.lead_id || "").trim() || undefined;
+  // job 1970: severity choice (normal default / red_flag = page Cory instantly).
+  // Validated to the engine's two-value vocabulary; anything else falls back to normal.
+  const severity = (body.severity || "").trim().toLowerCase() === "red_flag" ? "red_flag" : "normal";
   // N screenshots per ticket. Prefer the array; fall back to the legacy single field.
   const rawPaths = Array.isArray(body.image_paths)
     ? body.image_paths
@@ -54,6 +63,7 @@ export async function POST(req: Request) {
         reporter: profile.full_name || profile.email || "michael",
         text,
         lead_id,
+        severity, // job 1970: red-flag lane (engine treats anything else as normal)
         image_path, // legacy single (newline-joined) — kept for back-compat
         image_paths, // canonical N-image array the engine reads
       }),

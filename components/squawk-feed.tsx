@@ -44,6 +44,9 @@ type EngineActivityItem = {
   ledger_row_id: number | null;
   resolution_summary: string;
   timestamp: number;
+  // job 1970: submitter-chosen severity rides the engine's activity item; a red-flag
+  // squawk renders a 🚩 pill next to the (unchanged) honest status chip.
+  severity?: string | null;
 };
 
 const CHIP_TONE: Record<EngineChip, "amber" | "blue" | "green" | "muted"> = {
@@ -221,6 +224,11 @@ function TicketCard({
 
       <div className="flex flex-wrap items-center gap-2">
         <EngineStatusChip item={engineItem} loading={chipsLoading} />
+        {engineItem?.severity === "red_flag" && (
+          <span className="inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap bg-red-500/15 text-red-500 border-red-500/30">
+            🚩 Red flag
+          </span>
+        )}
         <span className="text-xs text-muted-foreground">
           updated {new Date(updated).toLocaleString()}
         </span>

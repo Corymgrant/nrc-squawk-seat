@@ -149,6 +149,10 @@ function ReportForm({ onDone }: { onDone: () => void }) {
   const [ackAt, setAckAt] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // job 1970: RED FLAG severity (Michael's own ask, 2026-08-19) — normal rides the
+  // usual flow; red flag pages Cory instantly. Routing speed only: every normal
+  // check and approval still applies, nothing auto-runs.
+  const [severity, setSeverity] = useState<"normal" | "red_flag">("normal");
 
   // image attachments — N screenshots per ticket (no artificial cap)
   const [imgErr, setImgErr] = useState<string | null>(null);
@@ -243,6 +247,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
         body: JSON.stringify({
           text,
           lead_id: leadId || undefined,
+          severity,
           image_paths: attachments.map((a) => a.path).filter((p): p is string => !!p),
         }),
       });
@@ -254,6 +259,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
       setReply(j.reply && j.reply !== "Got it — looking into this." ? j.reply : null);
       setText("");
       setLeadId("");
+      setSeverity("normal");
       clearImages();
       onDone();
     } catch (e: unknown) {
@@ -366,6 +372,36 @@ function ReportForm({ onDone }: { onDone: () => void }) {
           <div className="grid gap-2">
             <Label htmlFor="lead">Close lead ID (optional)</Label>
             <Input id="lead" value={leadId} onChange={(e) => setLeadId(e.target.value)} placeholder="lead_..." />
+          </div>
+
+          {/* job 1970: severity choice — default normal (usual flow, nothing changes);
+              RED FLAG pages Cory instantly. Routing speed only — same checks either way. */}
+          <div className="grid gap-2">
+            <Label>How urgent is it?</Label>
+            <div className="inline-flex w-full rounded-lg border border-input p-1 text-sm">
+              <button
+                type="button"
+                onClick={() => setSeverity("normal")}
+                className={`flex-1 rounded-md px-3 py-2 font-medium transition-colors ${
+                  severity === "normal" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                onClick={() => setSeverity("red_flag")}
+                className={`flex-1 rounded-md px-3 py-2 font-medium transition-colors ${
+                  severity === "red_flag" ? "bg-red-600 text-white" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                🚩 Red flag — urgent
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Red flag is for &quot;site down / payments broken / can&apos;t wait&quot; — it pings Cory&apos;s
+              phone right now. The fix still goes through the same normal checks either way.
+            </p>
           </div>
 
           {ackAt && (
