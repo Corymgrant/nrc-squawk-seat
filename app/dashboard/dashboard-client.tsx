@@ -7,6 +7,14 @@ import { OpportunitiesBoard } from "@/components/opportunities-board";
 import { SquawkManager } from "@/components/squawk-manager";
 import { MetaPanel } from "@/components/meta-panel";
 import { AccountingPanel } from "@/components/accounting-panel";
+import { TaskLedgerPanel } from "@/components/task-ledger-panel";
+import { HealthChipsPanel } from "@/components/health-chips-panel";
+import { CanonicalBrainPanel } from "@/components/canonical-brain-panel";
+import { SessionLogPanel } from "@/components/session-log-panel";
+import { GauntletPanel } from "@/components/gauntlet-panel";
+import { ChannelCommandPanel } from "@/components/channel-command-panel";
+import { RoasPanel } from "@/components/roas-panel";
+import { EdgeHealthPanel } from "@/components/edge-health-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -456,9 +464,14 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <div style={{ ...label }}>{ownerName.split(" ")[0]}&apos;s daily driver</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-          <button onClick={load} style={btn("transparent", C.muted)}>
-            ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Link href="/account/security" style={{ ...label, fontSize: 11 }}>
+              🔒 security
+            </Link>
+            <button onClick={load} style={btn("transparent", C.muted)}>
+              ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
+            </button>
+          </div>
           {asOf && (
             <span style={{ ...label, fontSize: 10, color: C.muted }} title="Ledger read time (server)">
               {asOf}
@@ -1256,6 +1269,36 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       <div data-tab="ops" style={card}>
         <div style={{ ...label, marginBottom: 8 }}>Opportunities · approve / deny</div>
         <OpportunitiesBoard />
+      </div>
+
+      {/* job 1941 — THE COCKPIT Phase 1: ADR-479 gap-panel port (8 of 13) +
+          edge-health. Ops = Task Ledger (ack target a), Health chips,
+          Canonical Brain, Session Log, Gauntlet, Edge Health. Creative =
+          Channel Command, Closed-Loop ROAS (ad/spend-adjacent — job 1885's
+          own tab categorization). */}
+      <div data-tab="ops">
+        <TaskLedgerPanel />
+      </div>
+      <div data-tab="ops">
+        <HealthChipsPanel />
+      </div>
+      <div data-tab="ops">
+        <EdgeHealthPanel />
+      </div>
+      <div data-tab="ops">
+        <CanonicalBrainPanel />
+      </div>
+      <div data-tab="ops">
+        <SessionLogPanel />
+      </div>
+      <div data-tab="ops">
+        <GauntletPanel />
+      </div>
+      <div data-tab="creative">
+        <ChannelCommandPanel />
+      </div>
+      <div data-tab="creative">
+        <RoasPanel />
       </div>
       </div>{/* /cockpit-cols */}
 

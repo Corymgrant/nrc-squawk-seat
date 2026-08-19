@@ -59,6 +59,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // job 1941: MFA step-up. Self-activating — nextLevel only ever reports
+  // "aal2" for an account that has ALREADY enrolled + verified a TOTP
+  // factor (see components/mfa-enrollment.tsx). An account with no factor
+  // stays at aal1/aal1 forever and is never touched by this block, so
+  // shipping this cannot lock anyone out before they've chosen to enroll.
+  if (user && !request.nextUrl.pathname.startsWith("/auth")) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/mfa-challenge";
+      url.searchParams.set("next", request.nextUrl.pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:
