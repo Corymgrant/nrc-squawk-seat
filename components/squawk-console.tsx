@@ -21,6 +21,7 @@ type Ticket = {
   image_url?: string | null;
   image_urls?: string[] | null;
   notes: SquawkNote[];
+  engine_nonce?: string | null;
 };
 type Role = "owner" | "sales_rep";
 type Tab = "report" | "teach" | "practice";
@@ -114,6 +115,7 @@ export function SquawkConsole({
             image_url: t.image_url,
             image_urls: t.image_urls ?? (t.image_url ? [t.image_url] : []),
             notes: t.notes,
+            engine_nonce: t.engine_nonce ?? null,
           }))}
           onExpand={setExpanded}
         />
@@ -141,6 +143,10 @@ function ReportForm({ onDone }: { onDone: () => void }) {
   const [text, setText] = useState("");
   const [leadId, setLeadId] = useState("");
   const [reply, setReply] = useState<string | null>(null);
+  // job 1966: the INSTANT ack ("Got it — seen" + a timestamp) is separate from the
+  // engine's own triage reply (reply, above) — it fires the moment the submit call
+  // returns, independent of whatever detail the engine eventually attaches.
+  const [ackAt, setAckAt] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -229,6 +235,7 @@ function ReportForm({ onDone }: { onDone: () => void }) {
     setLoading(true);
     setErr(null);
     setReply(null);
+    setAckAt(null);
     try {
       const res = await fetch("/api/squawk", {
         method: "POST",
@@ -241,7 +248,10 @@ function ReportForm({ onDone }: { onDone: () => void }) {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Something went wrong");
-      setReply(j.reply || "Got it — looking into this.");
+      // Instant, unconditional — fires the moment we know the report landed, never
+      // waiting on (or varying with) whatever detail comes back in j.reply.
+      setAckAt(new Date().toLocaleString());
+      setReply(j.reply && j.reply !== "Got it — looking into this." ? j.reply : null);
       setText("");
       setLeadId("");
       clearImages();
@@ -358,8 +368,11 @@ function ReportForm({ onDone }: { onDone: () => void }) {
             <Input id="lead" value={leadId} onChange={(e) => setLeadId(e.target.value)} placeholder="lead_..." />
           </div>
 
-          {reply && (
-            <div className="rounded-md border border-green-600/30 bg-green-600/10 p-3 text-sm">✅ {reply}</div>
+          {ackAt && (
+            <div className="rounded-md border border-green-600/30 bg-green-600/10 p-3 text-sm">
+              <div className="font-medium text-green-700">✅ Got it — seen · {ackAt}</div>
+              {reply && <div className="mt-1 text-muted-foreground">{reply}</div>}
+            </div>
           )}
           {err && <p className="text-sm text-red-500">{err}</p>}
           <Button type="submit" disabled={loading || uploading || !text.trim()}>

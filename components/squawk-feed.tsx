@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,56 @@ export type SquawkTicket = {
   image_url?: string | null;
   image_urls?: string[] | null;
   notes: SquawkNote[];
+  engine_nonce?: string | null;
 };
+
+// job 1966: the HONEST status chip — computed by squawk_engine.py's chip_for() at
+// request time (never a static label baked in here) and matched onto a ticket ONLY
+// via its engine_nonce (the one real link squawk_engine.py stamps back onto
+// squawk_tickets — supabase/migrations/20260817_squawk_tickets_engine_nonce.sql). A
+// ticket with no nonce match NEVER renders "Being worked" — it falls back to
+// "Received", same as the negative-case requirement.
+type EngineChip = "received" | "with_cory" | "queued" | "being_worked" | "fixed";
+type EngineActivityItem = {
+  nonce: string | null;
+  chip: EngineChip;
+  chip_label: string;
+  ledger_row_id: number | null;
+  resolution_summary: string;
+  timestamp: number;
+};
+
+const CHIP_TONE: Record<EngineChip, "amber" | "blue" | "green" | "muted"> = {
+  received: "muted",
+  with_cory: "amber",
+  queued: "blue",
+  being_worked: "blue",
+  fixed: "green",
+};
+
+function useEngineChips() {
+  const [byNonce, setByNonce] = useState<Map<string, EngineActivityItem> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/squawk/chips", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; activity?: EngineActivityItem[] }) => {
+        if (cancelled || !j.ok || !Array.isArray(j.activity)) return;
+        const m = new Map<string, EngineActivityItem>();
+        for (const item of j.activity) if (item.nonce) m.set(item.nonce, item);
+        setByNonce(m);
+      })
+      .catch(() => {
+        if (!cancelled) setByNonce(new Map()); // fail closed: no data -> every ticket falls back to "Received"
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return byNonce;
+}
 
 const STAGES = ["Received", "Triaged", "In progress", "Resolved", "Watching", "Archived"];
 
@@ -55,13 +104,22 @@ const TONE_CLASS: Record<string, string> = {
 
 const REOPENABLE = new Set(["resolved", "resolved_verified", "green_soak", "archived", "dismissed"]);
 
-function StatusBadge({ status }: { status: string }) {
-  const meta = STATUS_META[status] ?? { label: status, tone: "muted" as const, stage: null };
+// job 1966: the primary, engine-derived status chip. Rendered ONLY once the live
+// fetch has resolved (never a guessed/placeholder state); while loading, a neutral
+// "Checking status…" chip shows instead of asserting anything.
+function EngineStatusChip({ item, loading }: { item: EngineActivityItem | undefined; loading: boolean }) {
+  if (loading) {
+    return (
+      <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${TONE_CLASS.muted}`}>
+        Checking status…
+      </span>
+    );
+  }
+  const chip = item?.chip ?? "received";
+  const label = item?.chip_label ?? "Received";
   return (
-    <span
-      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${TONE_CLASS[meta.tone]}`}
-    >
-      {meta.label}
+    <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${TONE_CLASS[CHIP_TONE[chip]]}`}>
+      {label}
     </span>
   );
 }
@@ -96,8 +154,19 @@ function NoteRow({ note }: { note: SquawkNote }) {
   );
 }
 
-function TicketCard({ ticket, onExpand }: { ticket: SquawkTicket; onExpand: (url: string) => void }) {
+function TicketCard({
+  ticket,
+  onExpand,
+  chipsByNonce,
+  chipsLoading,
+}: {
+  ticket: SquawkTicket;
+  onExpand: (url: string) => void;
+  chipsByNonce: Map<string, EngineActivityItem> | null;
+  chipsLoading: boolean;
+}) {
   const router = useRouter();
+  const engineItem = ticket.engine_nonce ? chipsByNonce?.get(ticket.engine_nonce) : undefined;
   const [noteText, setNoteText] = useState("");
   const [reopening, setReopening] = useState(false);
   const [reason, setReason] = useState("");
@@ -151,11 +220,16 @@ function TicketCard({ ticket, onExpand }: { ticket: SquawkTicket; onExpand: (url
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={ticket.status} />
+        <EngineStatusChip item={engineItem} loading={chipsLoading} />
         <span className="text-xs text-muted-foreground">
           updated {new Date(updated).toLocaleString()}
         </span>
       </div>
+      {engineItem?.chip === "fixed" && engineItem.resolution_summary && (
+        <p className="rounded-md border border-green-600/30 bg-green-600/10 p-2.5 text-sm text-green-700">
+          {engineItem.resolution_summary}
+        </p>
+      )}
       <ProgressTrail status={ticket.status} />
 
       {(() => {
@@ -257,6 +331,8 @@ export function SquawkFeed({
   onExpand: (url: string) => void;
 }) {
   const [showClosed, setShowClosed] = useState(false);
+  const chipsByNonce = useEngineChips();
+  const chipsLoading = chipsByNonce === null;
   const active = tickets.filter((t) => !["archived", "dismissed"].includes(t.status));
   const closed = tickets.filter((t) => ["archived", "dismissed"].includes(t.status));
 
@@ -276,7 +352,7 @@ export function SquawkFeed({
           <>
             <ul className="flex flex-col divide-y divide-foreground/10">
               {active.map((t) => (
-                <TicketCard key={t.id} ticket={t} onExpand={onExpand} />
+                <TicketCard key={t.id} ticket={t} onExpand={onExpand} chipsByNonce={chipsByNonce} chipsLoading={chipsLoading} />
               ))}
             </ul>
             {closed.length > 0 && (
@@ -291,7 +367,7 @@ export function SquawkFeed({
                 {showClosed && (
                   <ul className="flex flex-col divide-y divide-foreground/10">
                     {closed.map((t) => (
-                      <TicketCard key={t.id} ticket={t} onExpand={onExpand} />
+                      <TicketCard key={t.id} ticket={t} onExpand={onExpand} chipsByNonce={chipsByNonce} chipsLoading={chipsLoading} />
                     ))}
                   </ul>
                 )}

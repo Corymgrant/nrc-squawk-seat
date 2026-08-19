@@ -6,6 +6,7 @@ import { SquawkConsole } from "@/components/squawk-console";
 import { SystemsStatus } from "@/components/systems-status";
 import { ApprenticePanel } from "@/components/apprentice-panel";
 import { LogoutButton } from "@/components/logout-button";
+import { ContextStrip } from "@/components/context-strip";
 import { activeKit } from "@/lib/kit-config";
 
 
@@ -30,9 +31,20 @@ export default async function SeatPage() {
   // Both queries run on the user's session client, so RLS scopes them to the
   // rep's OWN tickets/notes at the database level — never widen these to admin.
   const supabase = await createClient();
+  // job 1966: WHAT'S CHANGING THIS WEEK strip — chat-Claude-writable only (the app
+  // never inserts here); an empty/all-expired table means NO rows come back, and
+  // ContextStrip renders nothing in that case.
+  const nowIso = new Date().toISOString();
+  const { data: contextRows } = await supabase
+    .from("cockpit_michael_context")
+    .select("id,message,created_at")
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    .order("created_at", { ascending: false })
+    .limit(2);
+
   const { data: tickets } = await supabase
     .from("squawk_tickets")
-    .select("id,reporter,text,reply,status,created_at,status_updated_at,image_path")
+    .select("id,reporter,text,reply,status,created_at,status_updated_at,image_path,engine_nonce")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -78,6 +90,8 @@ export default async function SeatPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <ContextStrip rows={contextRows ?? []} />
+
       {/* ── Cockpit hero band — the reveal greeting ─────────────────────── */}
       <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 p-6 sm:p-7">
         <span
