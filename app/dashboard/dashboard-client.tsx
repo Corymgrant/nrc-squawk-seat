@@ -9,6 +9,7 @@ import { MetaPanel } from "@/components/meta-panel";
 import { AccountingPanel } from "@/components/accounting-panel";
 import { TaskLedgerPanel } from "@/components/task-ledger-panel";
 import { HealthChipsPanel } from "@/components/health-chips-panel";
+import { InboxNeedsYouPanel } from "@/components/inbox-needs-you-panel";
 import { CanonicalBrainPanel } from "@/components/canonical-brain-panel";
 import { SessionLogPanel } from "@/components/session-log-panel";
 import { GauntletPanel } from "@/components/gauntlet-panel";
@@ -1278,6 +1279,10 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           own tab categorization). */}
       <div data-tab="ops">
         <TaskLedgerPanel />
+      </div>
+      <div data-tab="ops">
+        {/* job 2007: Inbox Sentinel -- cory@norepaircost.com needs-Cory-reply card */}
+        <InboxNeedsYouPanel />
       </div>
       <div data-tab="ops">
         <HealthChipsPanel />
