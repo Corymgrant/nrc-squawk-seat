@@ -16,6 +16,7 @@ import { GauntletPanel } from "@/components/gauntlet-panel";
 import { ChannelCommandPanel } from "@/components/channel-command-panel";
 import { RoasPanel } from "@/components/roas-panel";
 import { EdgeHealthPanel } from "@/components/edge-health-panel";
+import { CockpitHomePanel } from "@/components/cockpit-home-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -362,7 +363,10 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   // job 1885: tabs per business category — sections are tagged data-tab="..." and
   // shown/hidden by CSS keyed off data-active-tab on the .cockpit-cols wrapper
   // (see the <style> block below). Additive: no section's own JSX/logic changed.
-  const [activeTab, setActiveTab] = useState<"ops" | "creative" | "accounting" | "squawk">("ops");
+  // job 2120 — "home" is the new THE COCKPIT DASHBOARD v1 landing surface
+  // (Needs-Cory card + Objectives rail/autonomy gauge + KPI tiles + squawk
+  // feed + cook queue), default-active per the cook's mobile-first ask.
+  const [activeTab, setActiveTab] = useState<"home" | "ops" | "creative" | "accounting" | "squawk">("home");
 
   const loadNotes = useCallback(async () => {
     try {
@@ -491,6 +495,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           unmounts, no data refetch on switch) keyed off data-active-tab. */}
       <style>{`
         .cockpit-cols > [data-tab] { display: none; }
+        .cockpit-cols[data-active-tab="home"] > [data-tab="home"] { display: block; }
         .cockpit-cols[data-active-tab="ops"] > [data-tab="ops"] { display: block; }
         .cockpit-cols[data-active-tab="creative"] > [data-tab="creative"] { display: block; }
         .cockpit-cols[data-active-tab="accounting"] > [data-tab="accounting"] { display: block; }
@@ -510,6 +515,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       >
         {(
           [
+            ["home", "Home"],
             ["ops", "Ops"],
             ["creative", "Creative"],
             ["accounting", "Accounting"],
@@ -518,6 +524,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         ).map(([key, tlabel]) => (
           <button
             key={key}
+            data-tab-btn={key}
             onClick={() => setActiveTab(key)}
             style={{
               flex: 1,
@@ -540,6 +547,11 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           nothing is narrower than the mobile view). Below 1000px this is a
           plain block wrapper → the single-column mobile layout is unchanged. */}
       <div className="cockpit-cols" data-active-tab={activeTab}>
+      {/* job 2120 — THE COCKPIT DASHBOARD v1: consolidated Home surface */}
+      <div data-tab="home">
+        <CockpitHomePanel squawk={squawk} notes={notes} loadNotes={loadNotes} />
+      </div>
+
       {/* 0 — KEYSTONE: the single highest-leverage Cory move (sequencer) */}
       {ks.keystone ? (
         <div data-tab="ops" style={{ ...card, borderColor: C.amber }}>
