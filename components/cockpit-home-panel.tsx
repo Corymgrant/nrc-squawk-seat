@@ -75,6 +75,10 @@ type NoteLike = {
 type ExpiredDefault = {
   key: string; objective: string; action: string; reason: string; deadline: string;
 };
+type NotifyPage = {
+  id: number; ts: string; title: string; body: string; category: string | null;
+  job_ref: string | null; row_ref: string | null; source: string | null; dedupe_key: string;
+};
 type ObjectiveItem = {
   key: string; name: string; progress_pct: number | null; status: string;
   next_step: string | null; blocker: string | null; last_advanced_date: string | null;
@@ -100,6 +104,7 @@ type CockpitV1 = {
   };
   cook_queue: { items: CookQueueItem[]; by_status: Record<string, number>; no_data?: boolean };
   expired_defaults: { items: ExpiredDefault[]; no_data?: boolean };
+  notify_pages: { items: NotifyPage[]; stale?: boolean; no_data?: boolean };
   error?: string;
 };
 
@@ -122,18 +127,25 @@ function NeedsCoryCard({
   gateNotes,
   onAckNote,
   expired,
+  notifyPages,
+  onResolvePage,
 }: {
   inboxItems: InboxItem[];
   onInboxAction: (id: string, action: "dismiss" | "snooze") => void;
   gateNotes: NoteLike[];
   onAckNote: (id: number) => void;
   expired: ExpiredDefault[];
+  notifyPages: NotifyPage[];
+  onResolvePage: (id: number) => void;
 }) {
   const [pressed, setPressed] = useState<string | null>(null);
-  const total = inboxItems.length + gateNotes.length + expired.length;
+  const total = inboxItems.length + gateNotes.length + expired.length + notifyPages.length;
   const INBOX_CAP = 8;
   const shownInbox = inboxItems.slice(0, INBOX_CAP);
   const hiddenInboxCount = inboxItems.length - shownInbox.length;
+  const PAGES_CAP = 10;
+  const shownPages = notifyPages.slice(0, PAGES_CAP);
+  const hiddenPagesCount = notifyPages.length - shownPages.length;
 
   return (
     <div style={{ ...card, borderColor: total > 0 ? C.amber : C.line }}>
@@ -153,6 +165,44 @@ function NeedsCoryCard({
           <div style={{ color: C.text, fontSize: 13, marginTop: 3 }}>{e.action}</div>
         </div>
       ))}
+
+      {shownPages.map((p) => (
+        <div key={`page-${p.id}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ color: C.amber, fontSize: 10.5, fontWeight: 700 }}>
+                📟 PAGE{p.category ? ` · ${p.category.toUpperCase()}` : ""}
+              </span>
+              {(p.job_ref || p.row_ref) && (
+                <span style={{ color: C.muted, fontSize: 10.5 }}>
+                  {" "}· {p.job_ref ? `job${p.job_ref}` : ""}{p.row_ref ? ` #${p.row_ref}` : ""}
+                </span>
+              )}
+              <div style={{ color: C.text, fontSize: 13, marginTop: 2, fontWeight: 600 }}>{p.title}</div>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{p.body.slice(0, 220)}</div>
+            </div>
+            <button
+              onMouseDown={() => setPressed(`page-${p.id}`)}
+              onMouseUp={() => setPressed(null)}
+              onTouchStart={() => setPressed(`page-${p.id}`)}
+              onTouchEnd={() => setPressed(null)}
+              onClick={() => onResolvePage(p.id)}
+              style={{
+                background: "transparent", border: `1px solid ${C.emerald}`, color: C.emerald,
+                borderRadius: 8, padding: "4px 9px", fontSize: 11, flexShrink: 0, cursor: "pointer",
+                transform: pressed === `page-${p.id}` ? "scale(0.94)" : undefined,
+              }}
+            >
+              ✓ resolved
+            </button>
+          </div>
+        </div>
+      ))}
+      {hiddenPagesCount > 0 && (
+        <div style={{ textAlign: "center", marginTop: 8, fontSize: 11.5, color: C.muted }}>
+          +{hiddenPagesCount} more page(s) — see cockpit_pages
+        </div>
+      )}
 
       {gateNotes.map((n) => (
         <div key={`note-${n.id}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
@@ -459,8 +509,26 @@ export function CockpitHomePanel({
     [loadNotes]
   );
 
+  const resolvePage = useCallback(
+    async (id: number) => {
+      // optimistic remove — refresh on next 45s poll reconciles with the server
+      setV1((s) => (s ? { ...s, notify_pages: { ...s.notify_pages, items: s.notify_pages.items.filter((p) => p.id !== id) } } : s));
+      try {
+        await fetch(`/api/owner/notify-pages/${id}/resolve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: "resolved from dashboard" }),
+        });
+      } finally {
+        load();
+      }
+    },
+    [load]
+  );
+
   const gateNotes = notes.filter((n) => n.status === "open" && n.item_ref !== "freeform-inbox");
   const expired = v1?.expired_defaults?.items ?? [];
+  const notifyPages = v1?.notify_pages?.items ?? [];
 
   return (
     <div>
@@ -476,6 +544,8 @@ export function CockpitHomePanel({
         gateNotes={gateNotes}
         onAckNote={ackNote}
         expired={expired}
+        notifyPages={notifyPages}
+        onResolvePage={resolvePage}
       />
 
       {v1 && <AutonomyGauge data={v1.autonomy_gauge} />}
