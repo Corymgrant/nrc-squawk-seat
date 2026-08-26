@@ -465,15 +465,15 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       {/* header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>Cockpit</div>
-          <div style={{ ...label }}>{ownerName.split(" ")[0]}&apos;s daily driver</div>
+          <div className="cx-title" style={{ color: C.text }}>Cockpit</div>
+          <div className="cx-caption" style={{ color: C.muted }}>{ownerName.split(" ")[0]}&apos;s daily driver</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Link href="/account/security" style={{ ...label, fontSize: 11 }}>
+            <Link href="/account/security" className="cx-fade" style={{ ...label, fontSize: 11 }}>
               🔒 security
             </Link>
-            <button onClick={load} style={btn("transparent", C.muted)}>
+            <button className="cx-btn" onClick={load} style={btn("transparent", C.muted)}>
               ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
             </button>
           </div>
@@ -525,6 +525,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           <button
             key={key}
             data-tab-btn={key}
+            className="cx-btn"
             onClick={() => setActiveTab(key)}
             style={{
               flex: 1,

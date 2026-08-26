@@ -1,9 +1,13 @@
 "use client";
 
-// job 2120 — THE COCKPIT DASHBOARD v1. One consolidated "Home" surface,
-// modes-not-panes (Apple-HIG anti-Meta/anti-QuickBooks bar): a single
-// continuous card stack, not another layer of sub-tabs. Five sections per
-// the row-2120 cook:
+// job 2120 — THE COCKPIT DASHBOARD v1. job 2157 — desktop-first Apple-HIG
+// rebuild of the SAME surface (Cory ruling 2026-08-25: "I don't want a V1
+// of the dashboard. I want THE dashboard"). Still one consolidated "Home"
+// surface, modes-not-panes: a real 3-column grid at >=1440px (Cory's M1
+// seat) — Needs-you as a sticky primary column, Objectives+KPIs in the
+// middle, Squawk/Queue on the right — collapsing to the untouched mobile
+// single-column stack below that breakpoint. Five sections per the
+// row-2120/2157 cooks:
 //   1. Needs-Cory to-do card  — merges Inbox Sentinel + open gate/notes cards
 //      + expired-default objective taps into one sorted, tappable list.
 //   2. Objectives Rail (A-H) + honest Autonomy Gauge.
@@ -14,7 +18,10 @@
 //   5. Cook Queue strip — running/queued/parked/blocked with age.
 //
 // HALO freshness invariant: every section renders its own `stale` flag as a
-// visible badge rather than silently showing a possibly-old number.
+// visible badge, PLUS a top-of-surface "as of" timestamp (job 2157) — a
+// stale/old tile must SAY so rather than silently showing a possibly-old
+// number. Every KPI also carries a one-line plain-English definition inline
+// (job 2157) so a number is never presented without saying what it means.
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -32,11 +39,36 @@ const card: React.CSSProperties = {
   background: C.card,
   borderRadius: 18,
   padding: 16,
-  marginBottom: 12,
+  marginBottom: 16,
   border: `1px solid ${C.line}`,
+  boxShadow: "0 1px 2px rgba(0,0,0,.35), 0 8px 24px -16px rgba(0,0,0,.5)",
 };
 const label: React.CSSProperties = { color: C.muted, fontSize: 12.5, fontWeight: 500, letterSpacing: 0.2 };
-const big: React.CSSProperties = { color: C.text, fontWeight: 700, lineHeight: 1.05 };
+
+// One-line plain-English definitions — every number on this surface must
+// carry its meaning inline (job 2157 point 5), not just a data label.
+const DEFINITIONS = {
+  leads: "Count of new Close leads today vs the 80/day minimum floor (leads below this pace under-fund the funnel).",
+  spend: "Today's Meta spend as a % of the daily glide line to the monthly budget target.",
+  cpl: "Close-side cost-per-lead: today's Meta spend ÷ Close leads actually created today.",
+  lpCvr: "Visitor → lead conversion rate on the landing pages — no per-visitor analytics source wired yet.",
+  batch1: "Recovery sends completed against the batch-1 phone-migration cohort — no live send-count tracker wired yet.",
+  laneB: "Real (non-synthetic) autoresponder drafts logged in Lane B, counted toward the 10-draft graduation threshold.",
+  objectives: "A–H progress on the standing objectives registry; the bar fills toward 100% as each objective's own milestones close.",
+  cookQueue: "Age = hours since the row was last picked up; 'waiting on' names the exact blocker keeping it from moving.",
+  squawk: "Rep-reported problems from the Squawk Box, last 48h, with their current triage status.",
+} as const;
+
+function fmtAsOf(iso?: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
 
 function StaleBadge({ stale, reason }: { stale?: boolean; reason?: string | null }) {
   if (!stale) return null;
@@ -56,6 +88,10 @@ function StaleBadge({ stale, reason }: { stale?: boolean; reason?: string | null
       STALE
     </span>
   );
+}
+
+function Definition({ children }: { children: React.ReactNode }) {
+  return <div className="cx-def">{children}</div>;
 }
 
 function money(n: number | null | undefined) {
@@ -150,27 +186,27 @@ function NeedsCoryCard({
   return (
     <div style={{ ...card, borderColor: total > 0 ? C.amber : C.line }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ ...label, color: C.text, fontSize: 15, fontWeight: 700 }}>Needs you</span>
-        <span style={{ ...label, color: total > 0 ? C.amber : C.emerald }}>{total} open</span>
+        <span className="cx-title" style={{ color: C.text }}>Needs you</span>
+        <span className="cx-headline" style={{ color: total > 0 ? C.amber : C.emerald }}>{total} open</span>
       </div>
 
       {total === 0 && <div style={{ color: C.emerald, fontSize: 13, marginTop: 8 }}>clean — nothing waiting on you</div>}
 
       {expired.map((e) => (
-        <div key={`exp-${e.key}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
+        <div key={`exp-${e.key}`} style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ color: C.amber, fontSize: 10.5, fontWeight: 700 }}>⏰ EXPIRED DEFAULT</span>
+            <span className="cx-eyebrow" style={{ color: C.amber }}>⏰ EXPIRED DEFAULT</span>
             <span style={{ color: C.muted, fontSize: 10.5 }}>{e.key} · was due {e.deadline}</span>
           </div>
-          <div style={{ color: C.text, fontSize: 13, marginTop: 3 }}>{e.action}</div>
+          <div className="cx-body" style={{ color: C.text, marginTop: 3 }}>{e.action}</div>
         </div>
       ))}
 
       {shownPages.map((p) => (
-        <div key={`page-${p.id}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
+        <div key={`page-${p.id}`} style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div style={{ minWidth: 0 }}>
-              <span style={{ color: C.amber, fontSize: 10.5, fontWeight: 700 }}>
+              <span className="cx-eyebrow" style={{ color: C.amber }}>
                 📟 PAGE{p.category ? ` · ${p.category.toUpperCase()}` : ""}
               </span>
               {(p.job_ref || p.row_ref) && (
@@ -178,10 +214,11 @@ function NeedsCoryCard({
                   {" "}· {p.job_ref ? `job${p.job_ref}` : ""}{p.row_ref ? ` #${p.row_ref}` : ""}
                 </span>
               )}
-              <div style={{ color: C.text, fontSize: 13, marginTop: 2, fontWeight: 600 }}>{p.title}</div>
+              <div className="cx-body" style={{ color: C.text, marginTop: 2, fontWeight: 600 }}>{p.title}</div>
               <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{p.body.slice(0, 220)}</div>
             </div>
             <button
+              className="cx-btn"
               onMouseDown={() => setPressed(`page-${p.id}`)}
               onMouseUp={() => setPressed(null)}
               onTouchStart={() => setPressed(`page-${p.id}`)}
@@ -189,7 +226,7 @@ function NeedsCoryCard({
               onClick={() => onResolvePage(p.id)}
               style={{
                 background: "transparent", border: `1px solid ${C.emerald}`, color: C.emerald,
-                borderRadius: 8, padding: "4px 9px", fontSize: 11, flexShrink: 0, cursor: "pointer",
+                borderRadius: 8, padding: "4px 9px", fontSize: 11, flexShrink: 0,
                 transform: pressed === `page-${p.id}` ? "scale(0.94)" : undefined,
               }}
             >
@@ -205,13 +242,14 @@ function NeedsCoryCard({
       )}
 
       {gateNotes.map((n) => (
-        <div key={`note-${n.id}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
+        <div key={`note-${n.id}`} style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div style={{ minWidth: 0 }}>
               <span style={{ color: C.muted, fontSize: 10.5 }}>gate · {n.item_label || n.item_type}</span>
-              <div style={{ color: C.text, fontSize: 13, marginTop: 2 }}>{n.body.slice(0, 140)}</div>
+              <div className="cx-body" style={{ color: C.text, marginTop: 2 }}>{n.body.slice(0, 140)}</div>
             </div>
             <button
+              className="cx-btn"
               onMouseDown={() => setPressed(`note-${n.id}`)}
               onMouseUp={() => setPressed(null)}
               onTouchStart={() => setPressed(`note-${n.id}`)}
@@ -219,7 +257,7 @@ function NeedsCoryCard({
               onClick={() => onAckNote(n.id)}
               style={{
                 background: "transparent", border: `1px solid ${C.emerald}`, color: C.emerald,
-                borderRadius: 8, padding: "4px 9px", fontSize: 11, flexShrink: 0, cursor: "pointer",
+                borderRadius: 8, padding: "4px 9px", fontSize: 11, flexShrink: 0,
                 transform: pressed === `note-${n.id}` ? "scale(0.94)" : undefined,
               }}
             >
@@ -230,14 +268,14 @@ function NeedsCoryCard({
       ))}
 
       {shownInbox.map((i) => (
-        <div key={`inbox-${i.id}`} style={{ padding: "8px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
+        <div key={`inbox-${i.id}`} style={{ padding: "10px 0", borderTop: `1px solid ${C.line}`, marginTop: 8 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <a href={i.thread_url} target="_blank" rel="noreferrer" style={{ minWidth: 0, textDecoration: "none", flex: 1 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                 {i.aged && <span style={{ color: C.red, fontSize: 10.5 }}>⚠️ AGED</span>}
                 <span style={{ color: C.muted, fontSize: 10.5 }}>email</span>
               </div>
-              <div style={{ color: C.text, fontSize: 13, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div className="cx-body" style={{ color: C.text, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {i.subject || "(no subject)"}
               </div>
               <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>
@@ -245,8 +283,8 @@ function NeedsCoryCard({
               </div>
             </a>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <button onClick={() => onInboxAction(i.id, "snooze")} style={{ background: "transparent", border: `1px solid ${C.line}`, color: C.muted, borderRadius: 8, padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>snooze</button>
-              <button onClick={() => onInboxAction(i.id, "dismiss")} style={{ background: "transparent", border: `1px solid ${C.line}`, color: C.muted, borderRadius: 8, padding: "4px 9px", fontSize: 11, cursor: "pointer" }}>dismiss</button>
+              <button className="cx-btn" onClick={() => onInboxAction(i.id, "snooze")} style={{ background: "transparent", border: `1px solid ${C.line}`, color: C.muted, borderRadius: 8, padding: "4px 9px", fontSize: 11 }}>snooze</button>
+              <button className="cx-btn" onClick={() => onInboxAction(i.id, "dismiss")} style={{ background: "transparent", border: `1px solid ${C.line}`, color: C.muted, borderRadius: 8, padding: "4px 9px", fontSize: 11 }}>dismiss</button>
             </div>
           </div>
         </div>
@@ -265,20 +303,21 @@ function ObjectivesRail({ data }: { data: CockpitV1["objectives"] }) {
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ ...label, color: C.text, fontSize: 15, fontWeight: 700 }}>Objectives · A–H</span>
+        <span className="cx-title" style={{ color: C.text }}>Objectives · A–H</span>
         <StaleBadge stale={data.stale} reason={data.stale_reason} />
       </div>
+      <Definition>{DEFINITIONS.objectives}</Definition>
       {data.no_data && <div style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>—</div>}
       {(data.items || []).map((o) => (
-        <div key={o.key} style={{ marginTop: 10 }}>
+        <div key={o.key} style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{o.key} · {o.name}</span>
-            <span style={{ fontSize: 12, color: objStatusColor(o.status) }}>{o.progress_pct != null ? `${Math.round(o.progress_pct)}%` : "—"}</span>
+            <span className="cx-headline" style={{ color: C.text }}>{o.key} · {o.name}</span>
+            <span className="cx-number" style={{ fontSize: 13, color: objStatusColor(o.status) }}>{o.progress_pct != null ? `${Math.round(o.progress_pct)}%` : "—"}</span>
           </div>
-          <div style={{ height: 5, background: "#0c0f10", borderRadius: 4, marginTop: 5, overflow: "hidden" }}>
-            <div style={{ width: `${Math.min(100, Number(o.progress_pct) || 0)}%`, height: "100%", background: objStatusColor(o.status) }} />
+          <div style={{ height: 5, background: "#0c0f10", borderRadius: 4, marginTop: 6, overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(100, Number(o.progress_pct) || 0)}%`, height: "100%", background: objStatusColor(o.status), transition: "width .3s var(--cx-ease)" }} />
           </div>
-          {o.blocker && <div style={{ fontSize: 11, color: C.amber, marginTop: 3 }}>blocked: {o.blocker}</div>}
+          {o.blocker && <div style={{ fontSize: 11, color: C.amber, marginTop: 4 }}>blocked: {o.blocker}</div>}
         </div>
       ))}
     </div>
@@ -289,21 +328,21 @@ function AutonomyGauge({ data }: { data: CockpitV1["autonomy_gauge"] }) {
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={label}>Autonomy gauge · {data.window_days ?? 7}d</span>
-        {!data.sample_size_ok && !data.no_data && <span style={{ ...label, fontSize: 10 }}>small-n</span>}
+        <span className="cx-headline" style={{ color: C.muted }}>Autonomy gauge · {data.window_days ?? 7}d</span>
+        {!data.sample_size_ok && !data.no_data && <span className="cx-caption" style={{ color: C.muted }}>small-n</span>}
       </div>
       {data.no_data ? (
         <div style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>—</div>
       ) : (
         <>
-          <div style={{ ...big, fontSize: 40, marginTop: 4 }}>
+          <div className="cx-number" style={{ color: C.text, fontSize: 40, marginTop: 6 }}>
             {data.autonomy_pct != null ? `${data.autonomy_pct}%` : "—"}
-            <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}> resolved without you</span>
+            <span style={{ fontSize: 12, color: C.muted, fontWeight: 400, letterSpacing: 0 }}> resolved without you</span>
           </div>
-          <div style={{ ...label, marginTop: 6 }}>
+          <div style={{ ...label, marginTop: 8 }}>
             {data.n_auto_resolved} auto-resolved · {data.n_cory_input} needed you · {data.n_ambiguous} unclassified
           </div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.4 }}>{data.definition}</div>
+          <Definition>{data.definition}</Definition>
         </>
       )}
     </div>
@@ -311,18 +350,19 @@ function AutonomyGauge({ data }: { data: CockpitV1["autonomy_gauge"] }) {
 }
 
 // ── KPI tiles ─────────────────────────────────────────────────────────────────
-function KpiTile({ title, children, stale, noData, reason }: { title: string; children?: React.ReactNode; stale?: boolean; noData?: boolean; reason?: string }) {
+function KpiTile({ title, definition, children, stale, noData, reason }: { title: string; definition: string; children?: React.ReactNode; stale?: boolean; noData?: boolean; reason?: string }) {
   return (
-    <div style={{ ...card, flex: "1 1 45%", minWidth: 150, marginBottom: 10 }}>
+    <div className="cx-card--tap" style={{ ...card, marginBottom: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ ...label, fontSize: 11 }}>{title}</span>
+        <span className="cx-caption" style={{ color: C.muted }}>{title}</span>
         <StaleBadge stale={stale} />
       </div>
       {noData ? (
-        <div style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>no live source{reason ? ` — ${reason.slice(0, 60)}` : ""}</div>
+        <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>no live source{reason ? ` — ${reason.slice(0, 60)}` : ""}</div>
       ) : (
-        <div style={{ marginTop: 6 }}>{children}</div>
+        <div style={{ marginTop: 8 }}>{children}</div>
       )}
+      <Definition>{definition}</Definition>
     </div>
   );
 }
@@ -336,29 +376,29 @@ function KpiTiles({ data }: { data: CockpitV1["kpi_tiles"] }) {
   const belowFloor = leads.today_vs_floor === "below";
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-      <KpiTile title="Leads today vs floor(80)" noData={leads.no_data}>
-        <div style={{ ...big, fontSize: 26, color: belowFloor ? C.amber : C.emerald }}>{leads.leads_today ?? "—"}</div>
+    <div className="cx-kpi-grid">
+      <KpiTile title="Leads today vs floor(80)" definition={DEFINITIONS.leads} noData={leads.no_data}>
+        <div className="cx-number" style={{ fontSize: 28, color: belowFloor ? C.amber : C.emerald }}>{leads.leads_today ?? "—"}</div>
         <div style={label}>yesterday {leads.leads_yesterday ?? "—"} · floor {leads.floor ?? 80}</div>
       </KpiTile>
-      <KpiTile title="Spend pace vs glide" stale={spend.stale} noData={spend.no_data}>
-        <div style={{ ...big, fontSize: 26, color: spend.verdict === "breach" ? C.red : C.emerald }}>
+      <KpiTile title="Spend pace vs glide" definition={DEFINITIONS.spend} stale={spend.stale} noData={spend.no_data}>
+        <div className="cx-number" style={{ fontSize: 28, color: spend.verdict === "breach" ? C.red : C.emerald }}>
           {spend.pace_pct != null ? `${spend.pace_pct}%` : "—"}
         </div>
         <div style={label}>{money(spend.spend)} of {money(spend.budget_line_glide)} glide</div>
       </KpiTile>
-      <KpiTile title="Real CPL · Close-side" stale={cpl.stale} noData={cpl.no_data}>
-        <div style={{ ...big, fontSize: 26 }}>{cpl.real_cpl_usd != null ? `$${cpl.real_cpl_usd}` : "—"}</div>
+      <KpiTile title="Real CPL · Close-side" definition={DEFINITIONS.cpl} stale={cpl.stale} noData={cpl.no_data}>
+        <div className="cx-number" style={{ fontSize: 28, color: C.text }}>{cpl.real_cpl_usd != null ? `$${cpl.real_cpl_usd}` : "—"}</div>
         <div style={label}>close rate {cpl.close_rate_pct != null ? `${cpl.close_rate_pct}%` : "—"}</div>
       </KpiTile>
-      <KpiTile title="LP CVR" noData reason="no visitor-level LP conversion source wired for v1">
+      <KpiTile title="LP CVR" definition={DEFINITIONS.lpCvr} noData reason="no visitor-level LP conversion source wired for v1">
         <span />
       </KpiTile>
-      <KpiTile title="Batch-1 recovery sends" noData={batch1.no_data} reason={batch1.reason}>
+      <KpiTile title="Batch-1 recovery sends" definition={DEFINITIONS.batch1} noData={batch1.no_data} reason={batch1.reason}>
         <span />
       </KpiTile>
-      <KpiTile title="Lane B shadow drafts" stale={laneB.stale} noData={laneB.no_data}>
-        <div style={{ ...big, fontSize: 26 }}>{laneB.real_drafts ?? "—"} <span style={{ fontSize: 13, color: C.muted, fontWeight: 400 }}>/ {laneB.graduation_threshold ?? 10}</span></div>
+      <KpiTile title="Lane B shadow drafts" definition={DEFINITIONS.laneB} stale={laneB.stale} noData={laneB.no_data}>
+        <div className="cx-number" style={{ fontSize: 28, color: C.text }}>{laneB.real_drafts ?? "—"} <span style={{ fontSize: 13, color: C.muted, fontWeight: 400, letterSpacing: 0 }}>/ {laneB.graduation_threshold ?? 10}</span></div>
         <div style={label}>{laneB.total_drafts ?? 0} total drafts</div>
       </KpiTile>
     </div>
@@ -371,9 +411,10 @@ function CookQueueStrip({ data }: { data: CockpitV1["cook_queue"] }) {
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ ...label, color: C.text, fontSize: 15, fontWeight: 700 }}>Cook queue · why we're waiting</span>
+        <span className="cx-title" style={{ color: C.text, fontSize: 15 }}>Cook queue · why we&apos;re waiting</span>
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+      <Definition>{DEFINITIONS.cookQueue}</Definition>
+      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         {Object.entries(data.by_status || {}).map(([s, n]) => (
           <span key={s} style={{ fontSize: 11, color: statusColor(s), border: `1px solid ${statusColor(s)}55`, borderRadius: 999, padding: "2px 9px" }}>
             {s} {n}
@@ -414,10 +455,11 @@ function SquawkPageFeed({ squawk }: { squawk: { count?: number; activity?: Array
   return (
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ ...label, color: C.text, fontSize: 15, fontWeight: 700 }}>Squawk + page feed · 48h</span>
-        <span style={label}>{squawk?.count ?? 0}</span>
+        <span className="cx-title" style={{ color: C.text, fontSize: 15 }}>Squawk + page feed · 48h</span>
+        <span className="cx-number" style={{ fontSize: 13, color: C.muted }}>{squawk?.count ?? 0}</span>
       </div>
-      <div style={{ marginTop: 8 }}>
+      <Definition>{DEFINITIONS.squawk}</Definition>
+      <div style={{ marginTop: 10 }}>
         {recent.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>—</div>}
         {recent.map((a, i) => (
           <div key={i} style={{ padding: "6px 0", borderTop: i ? `1px solid ${C.line}` : "none", display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -428,7 +470,7 @@ function SquawkPageFeed({ squawk }: { squawk: { count?: number; activity?: Array
           </div>
         ))}
       </div>
-      <Link href="#" onClick={(e) => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[data-tab-btn="squawk"]')?.click(); }}
+      <Link href="#" className="cx-fade" onClick={(e) => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[data-tab-btn="squawk"]')?.click(); }}
         style={{ display: "block", marginTop: 10, textAlign: "center", color: C.emerald, fontSize: 12.5, textDecoration: "none" }}>
         full Squawk tab →
       </Link>
@@ -538,21 +580,38 @@ export function CockpitHomePanel({
         </div>
       )}
 
-      <NeedsCoryCard
-        inboxItems={inbox}
-        onInboxAction={inboxAction}
-        gateNotes={gateNotes}
-        onAckNote={ackNote}
-        expired={expired}
-        notifyPages={notifyPages}
-        onResolvePage={resolvePage}
-      />
+      {v1 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <span className="cx-caption" style={{ color: C.muted }} title="Server-side ledger read time — this whole surface's freshness stamp">
+            data as of {fmtAsOf(v1.generated_at)}
+          </span>
+        </div>
+      )}
 
-      {v1 && <AutonomyGauge data={v1.autonomy_gauge} />}
-      {v1 && <ObjectivesRail data={v1.objectives} />}
-      {v1 && <KpiTiles data={v1.kpi_tiles} />}
-      <SquawkPageFeed squawk={squawk} />
-      {v1 && <CookQueueStrip data={v1.cook_queue} />}
+      <div className="cx-home-shell">
+        <div className="cx-col-primary">
+          <NeedsCoryCard
+            inboxItems={inbox}
+            onInboxAction={inboxAction}
+            gateNotes={gateNotes}
+            onAckNote={ackNote}
+            expired={expired}
+            notifyPages={notifyPages}
+            onResolvePage={resolvePage}
+          />
+        </div>
+
+        <div className="cx-col-secondary">
+          {v1 && <AutonomyGauge data={v1.autonomy_gauge} />}
+          {v1 && <ObjectivesRail data={v1.objectives} />}
+          {v1 && <KpiTiles data={v1.kpi_tiles} />}
+        </div>
+
+        <div className="cx-col-tertiary">
+          <SquawkPageFeed squawk={squawk} />
+          {v1 && <CookQueueStrip data={v1.cook_queue} />}
+        </div>
+      </div>
     </div>
   );
 }
