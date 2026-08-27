@@ -174,3 +174,21 @@
 @media (min-width: 1440px) {
   .cx-kpi-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ── job2269 THE RELATIONS LAYER — Graph tab desktop grid ────────────
+   Below 1440px: single-column stack (catalog, then ego-graph, then
+   detail) — the SAME phone-excellent guarantee as the Home tab. At
+   >=1440px: a real 3-column grid (catalog | ego-graph | detail), the
+   same breakpoint/pattern as .cx-home-shell so both modes on this one
+   surface read as one product. */
+.cockpit-cols[data-active-tab="graph"] { column-count: 1 !important; columns: unset; }
+.cx-graph-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cx-sp-3); }
+/* grid items default to min-width:auto, i.e. "never shrink below my content's
+   natural size" — a flex-wrap chip row inside a grid cell inherits that and
+   forces the WHOLE page to scroll horizontally on phone instead of wrapping
+   at the viewport edge. min-width:0 makes the cell respect its track. */
+.cx-graph-shell > * { min-width: 0; }
+@media (min-width: 1440px) {
+  .cockpit-main:has(.cockpit-cols[data-active-tab="graph"]) { max-width: 1680px !important; }
+  .cx-graph-shell { grid-template-columns: 340px minmax(0, 1fr) 380px; align-items: start; }
+}

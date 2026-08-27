@@ -17,6 +17,7 @@ import { ChannelCommandPanel } from "@/components/channel-command-panel";
 import { RoasPanel } from "@/components/roas-panel";
 import { EdgeHealthPanel } from "@/components/edge-health-panel";
 import { CockpitHomePanel } from "@/components/cockpit-home-panel";
+import { RelationsGraphPanel } from "@/components/relations-graph-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -366,7 +367,10 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
   // job 2120 — "home" is the new THE COCKPIT DASHBOARD v1 landing surface
   // (Needs-Cory card + Objectives rail/autonomy gauge + KPI tiles + squawk
   // feed + cook queue), default-active per the cook's mobile-first ask.
-  const [activeTab, setActiveTab] = useState<"home" | "ops" | "creative" | "accounting" | "squawk">("home");
+  // job 2269 — "graph" is THE RELATIONS LAYER mode: same surface as "home"
+  // (tiles), never a separate page — Cory's own framing ("absorbs the
+  // tile-dashboard scope ... rather than competing with it").
+  const [activeTab, setActiveTab] = useState<"home" | "graph" | "ops" | "creative" | "accounting" | "squawk">("home");
 
   const loadNotes = useCallback(async () => {
     try {
@@ -496,6 +500,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       <style>{`
         .cockpit-cols > [data-tab] { display: none; }
         .cockpit-cols[data-active-tab="home"] > [data-tab="home"] { display: block; }
+        .cockpit-cols[data-active-tab="graph"] > [data-tab="graph"] { display: block; }
         .cockpit-cols[data-active-tab="ops"] > [data-tab="ops"] { display: block; }
         .cockpit-cols[data-active-tab="creative"] > [data-tab="creative"] { display: block; }
         .cockpit-cols[data-active-tab="accounting"] > [data-tab="accounting"] { display: block; }
@@ -511,11 +516,20 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
           zIndex: 5,
           background: C.bg,
           paddingBottom: 4,
+          // job2269: a 6th tab (Graph) pushed the strip's min-content width
+          // past a 390px phone viewport, which forced the WHOLE page to
+          // scroll horizontally (every full-width row clipped at the same
+          // edge, not just the tab bar) — the exact "phone excellent under
+          // the breakpoint" bar this cook is held to. Fix: the strip itself
+          // scrolls horizontally; every row below it stays full-width.
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         {(
           [
             ["home", "Home"],
+            ["graph", "Graph"],
             ["ops", "Ops"],
             ["creative", "Creative"],
             ["accounting", "Accounting"],
@@ -528,14 +542,17 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
             className="cx-btn"
             onClick={() => setActiveTab(key)}
             style={{
-              flex: 1,
-              padding: "9px 4px",
+              flex: "1 1 auto",
+              flexShrink: 0,
+              minWidth: 76,
+              padding: "9px 10px",
               borderRadius: 12,
               border: `1px solid ${activeTab === key ? C.emerald : C.line}`,
               background: activeTab === key ? "#12251d" : C.card,
               color: activeTab === key ? C.emerald : C.muted,
               fontSize: 12.5,
               fontWeight: 600,
+              whiteSpace: "nowrap",
             }}
           >
             {tlabel}
@@ -551,6 +568,11 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       {/* job 2120 — THE COCKPIT DASHBOARD v1: consolidated Home surface */}
       <div data-tab="home">
         <CockpitHomePanel squawk={squawk} notes={notes} loadNotes={loadNotes} />
+      </div>
+
+      {/* job 2269 — THE RELATIONS LAYER: catalog + graph mode, same surface */}
+      <div data-tab="graph">
+        <RelationsGraphPanel />
       </div>
 
       {/* 0 — KEYSTONE: the single highest-leverage Cory move (sequencer) */}
