@@ -54,6 +54,7 @@ const DEFINITIONS = {
   lpCvr: "Visitor → lead conversion rate on the landing pages — no per-visitor analytics source wired yet.",
   batch1: "Recovery sends completed against the batch-1 phone-migration cohort — no live send-count tracker wired yet.",
   laneB: "Real (non-synthetic) autoresponder drafts logged in Lane B, counted toward the 10-draft graduation threshold.",
+  unwatched: "Estate graph nodes (workflows, credentials, cron, ads, invariants…) with zero incoming 'watches' edge from any invariant — a green heartbeat doesn't count as watched. This number rising is itself an alarm.",
   objectives: "A–H progress on the standing objectives registry; the bar fills toward 100% as each objective's own milestones close.",
   cookQueue: "Age = hours since the row was last picked up; 'waiting on' names the exact blocker keeping it from moving.",
   squawk: "Rep-reported problems from the Squawk Box, last 48h, with their current triage status.",
@@ -135,6 +136,7 @@ type CockpitV1 = {
     leads: { leads_today?: number; leads_yesterday?: number; floor?: number; today_vs_floor?: string; no_data?: boolean };
     spend_pace: { budget_line_glide?: number; spend?: number; pace_pct?: number; verdict?: string; stale?: boolean; no_data?: boolean };
     cpl_cvr: { real_cpl_usd?: number | null; close_rate_pct?: number | null; quote_rate_pct?: number | null; lp_cvr_no_source?: boolean; stale?: boolean; no_data?: boolean };
+    unwatched_nodes: { unwatched_count?: number | null; unwatched_count_prev?: number | null; rising?: boolean | null; node_count?: number | null; orphan_count?: number | null; stale?: boolean; no_data?: boolean; reason?: string };
     batch1_recovery_sends: { no_data?: boolean; reason?: string };
     lane_b_shadow: { real_drafts?: number; total_drafts?: number; graduation_threshold?: number; stale?: boolean; no_data?: boolean };
   };
@@ -371,6 +373,7 @@ function KpiTiles({ data }: { data: CockpitV1["kpi_tiles"] }) {
   const leads = data.leads || {};
   const spend = data.spend_pace || {};
   const cpl = data.cpl_cvr || {};
+  const unwatched = data.unwatched_nodes || {};
   const laneB = data.lane_b_shadow || {};
   const batch1 = data.batch1_recovery_sends || {};
   const belowFloor = leads.today_vs_floor === "below";
@@ -390,6 +393,23 @@ function KpiTiles({ data }: { data: CockpitV1["kpi_tiles"] }) {
       <KpiTile title="Real CPL · Close-side" definition={DEFINITIONS.cpl} stale={cpl.stale} noData={cpl.no_data}>
         <div className="cx-number" style={{ fontSize: 28, color: C.text }}>{cpl.real_cpl_usd != null ? `$${cpl.real_cpl_usd}` : "—"}</div>
         <div style={label}>close rate {cpl.close_rate_pct != null ? `${cpl.close_rate_pct}%` : "—"}</div>
+      </KpiTile>
+      {/* job2321/job2341 — THE GRAPH LAYER headline number: nodes with zero
+          watching invariant. Rising = alarm, surfaced here so Cory sees the
+          same number the nightly sweep pages on, without opening the Graph tab. */}
+      <KpiTile title="Unwatched estate nodes" definition={DEFINITIONS.unwatched} stale={unwatched.stale} noData={unwatched.no_data} reason={unwatched.reason}>
+        <div className="cx-number" style={{ fontSize: 28, color: unwatched.rising ? C.amber : C.text }}>
+          {unwatched.unwatched_count ?? "—"}
+          {unwatched.rising != null && (
+            <span style={{ fontSize: 13, color: unwatched.rising ? C.amber : C.emerald, fontWeight: 600, letterSpacing: 0 }}>
+              {" "}{unwatched.rising ? "▲ rising" : "flat/falling"}
+            </span>
+          )}
+        </div>
+        <div style={label}>
+          of {unwatched.node_count ?? "—"} nodes · {unwatched.orphan_count ?? "—"} fully orphaned
+          {unwatched.unwatched_count_prev != null ? ` · was ${unwatched.unwatched_count_prev}` : ""}
+        </div>
       </KpiTile>
       <KpiTile title="LP CVR" definition={DEFINITIONS.lpCvr} noData reason="no visitor-level LP conversion source wired for v1">
         <span />
