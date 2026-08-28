@@ -60,9 +60,29 @@ const TYPE_LABEL: Record<string, string> = {
   objective: "Objectives A–H",
   person: "People",
   resource: "Resources",
+  // job2321 PART ONE additions — credential/estate-inventory node types.
+  credential: "Credentials",
+  webhook: "Webhooks",
+  cron: "Cron jobs",
+  campaign: "Meta campaigns",
+  ad: "Meta ads",
+  creative: "Meta creatives",
+  pipelinestage: "Close pipeline stages",
+  form: "Instant Forms",
+  question: "Questions",
+  endpage: "End pages",
+  academy: "Academy",
+  persona: "Personas",
+  judge: "Judges",
+  portal: "Portals",
+  reviewstate: "Review states",
 };
 
-const TYPE_ORDER = ["row", "capability", "invariant", "workflow", "objective", "person", "resource"];
+const TYPE_ORDER = [
+  "row", "capability", "invariant", "workflow", "objective", "person", "resource",
+  "credential", "webhook", "cron", "campaign", "ad", "creative", "pipelinestage",
+  "form", "question", "endpage", "academy", "persona", "judge", "portal", "reviewstate",
+];
 
 type GraphNode = {
   id: string;
