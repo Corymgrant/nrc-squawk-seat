@@ -15,7 +15,11 @@
 //      shadow count, batch-1 recovery (explicitly "no live source" if unwired).
 //   4. Squawk + Page feed — reuses the same panels.squawk data the Squawk tab
 //      already loads (no new plumbing).
-//   5. Cook Queue strip — running/queued/parked/blocked with age.
+//   5. Cook Queue strip — running/queued/parked/blocked with age, PLUS
+//      (job 2357) a "Completed · last 24h" sub-section carrying each row's
+//      actual deliverable link(s) and ack status — the durable backstop to
+//      the WIN-lane completion notification, so a finished deliverable is
+//      never invisible even if its ntfy page was missed (job 2332 incident).
 //
 // HALO freshness invariant: every section renders its own `stale` flag as a
 // visible badge, PLUS a top-of-surface "as of" timestamp (job 2157) — a
@@ -58,6 +62,7 @@ const DEFINITIONS = {
   objectives: "A–H progress on the standing objectives registry; the bar fills toward 100% as each objective's own milestones close.",
   cookQueue: "Age = hours since the row was last picked up; 'waiting on' names the exact blocker keeping it from moving.",
   squawk: "Rep-reported problems from the Squawk Box, last 48h, with their current triage status.",
+  completed24h: "job2357: every row that finished in the last 24h, with the actual deliverable link(s) it shipped and whether the completion page was acknowledged. A row with no link here shipped without a recorded deliverable notice — that's a gap, not a blank.",
 } as const;
 
 function fmtAsOf(iso?: string | null): string {
@@ -124,6 +129,10 @@ type CookQueueItem = {
   id: number; title: string; status: string; priority: string | null;
   owner: string | null; age_hours: number | null; waiting_on: string | null;
 };
+type CompletedItem = {
+  id: number; title: string; age_hours: number | null; urls: string[];
+  has_deliverable: boolean; acknowledged: boolean | null; resurface_count: number;
+};
 type CockpitV1 = {
   generated_at: string;
   objectives: { items: ObjectiveItem[]; stale?: boolean; stale_reason?: string | null; no_data?: boolean };
@@ -140,7 +149,7 @@ type CockpitV1 = {
     batch1_recovery_sends: { no_data?: boolean; reason?: string };
     lane_b_shadow: { real_drafts?: number; total_drafts?: number; graduation_threshold?: number; stale?: boolean; no_data?: boolean };
   };
-  cook_queue: { items: CookQueueItem[]; by_status: Record<string, number>; no_data?: boolean };
+  cook_queue: { items: CookQueueItem[]; by_status: Record<string, number>; completed_24h?: { items: CompletedItem[]; no_data?: boolean }; no_data?: boolean };
   expired_defaults: { items: ExpiredDefault[]; no_data?: boolean };
   notify_pages: { items: NotifyPage[]; stale?: boolean; no_data?: boolean };
   error?: string;
@@ -454,6 +463,51 @@ function CookQueueStrip({ data }: { data: CockpitV1["cook_queue"] }) {
               </span>
             </div>
             {it.waiting_on && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>waiting on: {it.waiting_on}</div>}
+          </div>
+        ))}
+      </div>
+      <CompletedLast24h data={data.completed_24h} />
+    </div>
+  );
+}
+
+// job2357: completed-in-last-24h with deliverable links, one tap. Root
+// incident: job 2332's NAARVA completion (2 live URLs) was ACCEPTED rc=200
+// by the notify router and never reached Cory — this panel is the durable
+// backstop the notification is only the interrupt for (row2357 instruction
+// SIX: "the dashboard is the durable answer — the notification is the
+// interrupt. Both must carry the artifact, not just the status.").
+function CompletedLast24h({ data }: { data?: CockpitV1["cook_queue"]["completed_24h"] }) {
+  const items = data?.items || [];
+  if (!data || data.no_data) return null;
+  return (
+    <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+      <span className="cx-title" style={{ color: C.text, fontSize: 13 }}>Completed · last 24h</span>
+      <Definition>{DEFINITIONS.completed24h}</Definition>
+      <div style={{ marginTop: 8, maxHeight: 260, overflowY: "auto" }}>
+        {items.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>—</div>}
+        {items.map((it, i) => (
+          <div key={it.id} style={{ padding: "6px 0", borderTop: i ? `1px solid ${C.line}` : "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ fontSize: 12.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                #{it.id} {it.title}
+              </span>
+              <span style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap" }}>{it.age_hours != null ? `${it.age_hours}h ago` : "—"}</span>
+            </div>
+            {it.has_deliverable ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3, alignItems: "center" }}>
+                {it.urls.map((u, j) => (
+                  <a key={j} href={u} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: C.emerald, textDecoration: "underline" }}>
+                    {u.replace(/^https?:\/\//, "")}
+                  </a>
+                ))}
+                <span style={{ fontSize: 10.5, color: it.acknowledged ? C.emerald : C.amber }}>
+                  {it.acknowledged ? "✓ seen" : it.resurface_count > 0 ? `pending · resurfaced ${it.resurface_count}x` : "pending"}
+                </span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>no deliverable link recorded</div>
+            )}
           </div>
         ))}
       </div>
