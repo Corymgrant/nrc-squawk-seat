@@ -8,7 +8,7 @@ import { getSessionProfile } from "@/lib/profile";
 // notes are handled by the existing /api/dashboard/notes conduit, not this route.
 export const dynamic = "force-dynamic";
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH = "https://graph.facebook.com/v26.0";
 const TOKEN = process.env.META_SYSTEM_USER_TOKEN;
 const ACCOUNT = process.env.META_AD_ACCOUNT || "act_623088029316611";
 const FREQ_FLAG = 2.5; // NRC's tighter frequency threshold
