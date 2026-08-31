@@ -88,3 +88,107 @@
   .cockpit-main { max-width: 1680px !important; }
   .cockpit-cols { column-count: 3; }
 }
+
+/* ==================================================================
+   JOB 2157 — THE COCKPIT: desktop-first Home surface + Apple-HIG tokens
+   (Cory ruling 2026-08-25: "I don't want a V1... I want THE dashboard").
+   Root-caused why job-327's masonry above never widened the Home tab:
+   column-count needs multiple sibling boxes to distribute; the Home tab
+   is a single wrapper div, and `.cockpit-cols > * { break-inside: avoid }`
+   forbids splitting it — so the browser places that one unsplittable
+   child in column 1 and leaves column 2 empty. That is the exact "phone
+   column on a wide canvas" bug row 2155/2157 reported (verified against
+   the row-2120 desktop screenshot). Fix: neutralize column-count for the
+   Home tab specifically and lay it out with a real CSS Grid instead.
+   Breakpoint matches Cory's M1 seat: >=1440px. Below that, unchanged
+   mobile single-column stack (untouched — do not remove this comment's
+   guarantee without re-verifying the phone screenshot).
+   ================================================================== */
+@media (min-width: 1000px) {
+  .cockpit-cols[data-active-tab="home"] { column-count: 1 !important; columns: unset; }
+}
+
+:root {
+  --cx-sp-1: 4px;
+  --cx-sp-2: 8px;
+  --cx-sp-3: 16px;
+  --cx-sp-4: 24px;
+  --cx-sp-5: 32px;
+  --cx-sp-6: 48px;
+  --cx-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Type scale — number-first: the figure is always larger/bolder than its
+   caption, per the HIG bar (dial/ornament secondary to the digit). */
+.cx-eyebrow  { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+.cx-caption  { font-size: 12px; font-weight: 500; letter-spacing: 0.1px; }
+.cx-body     { font-size: 13.5px; font-weight: 400; line-height: 1.5; }
+.cx-headline { font-size: 15px; font-weight: 700; letter-spacing: -0.1px; }
+.cx-title    { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+.cx-number   { font-weight: 700; letter-spacing: -0.5px; line-height: 1; font-variant-numeric: tabular-nums; }
+.cx-def      { font-size: 11px; line-height: 1.5; color: #7E8682; margin-top: 4px; }
+
+@media (min-width: 1440px) {
+  .cx-title    { font-size: 26px; }
+  .cx-headline { font-size: 16px; }
+  .cx-body     { font-size: 14px; }
+}
+
+/* Interactive affordances — every tappable control gets a real hover/press
+   state and an interruptible, short, eased transition (never an abrupt cut). */
+.cx-btn, .cx-card--tap {
+  transition: background-color .14s var(--cx-ease), border-color .14s var(--cx-ease),
+              color .14s var(--cx-ease), transform .1s var(--cx-ease), box-shadow .14s var(--cx-ease);
+}
+.cx-btn:hover { filter: brightness(1.18); cursor: pointer; }
+.cx-btn:active { transform: scale(0.94); }
+.cx-card--tap:hover { border-color: #2FD79B77 !important; box-shadow: 0 2px 14px -6px rgba(47,215,155,0.25); }
+@media (prefers-reduced-motion: reduce) {
+  .cx-btn, .cx-card--tap { transition: none !important; }
+}
+
+/* ── Home tab desktop grid (>=1440px, Cory's M1 seat width) ─────────── */
+.cx-home-shell { display: block; }
+@media (min-width: 1440px) {
+  .cockpit-main:has(.cockpit-cols[data-active-tab="home"]) { max-width: 1600px !important; }
+  .cx-home-shell {
+    display: grid;
+    grid-template-columns: 400px minmax(0, 1fr) 380px;
+    gap: var(--cx-sp-4);
+    align-items: start;
+  }
+  .cx-col-primary {
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .cx-col-primary::-webkit-scrollbar { width: 6px; }
+  .cx-col-primary::-webkit-scrollbar-thumb { background: #222829; border-radius: 3px; }
+}
+
+/* KPI tiles as a real grid (2-up mobile, 3-up desktop) instead of
+   flex-wrap's uneven row breaks. */
+.cx-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--cx-sp-3); }
+@media (min-width: 1440px) {
+  .cx-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── job2269 THE RELATIONS LAYER — Graph tab desktop grid ────────────
+   Below 1440px: single-column stack (catalog, then ego-graph, then
+   detail) — the SAME phone-excellent guarantee as the Home tab. At
+   >=1440px: a real 3-column grid (catalog | ego-graph | detail), the
+   same breakpoint/pattern as .cx-home-shell so both modes on this one
+   surface read as one product. */
+.cockpit-cols[data-active-tab="graph"] { column-count: 1 !important; columns: unset; }
+.cx-graph-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cx-sp-3); }
+/* grid items default to min-width:auto, i.e. "never shrink below my content's
+   natural size" — a flex-wrap chip row inside a grid cell inherits that and
+   forces the WHOLE page to scroll horizontally on phone instead of wrapping
+   at the viewport edge. min-width:0 makes the cell respect its track. */
+.cx-graph-shell > * { min-width: 0; }
+@media (min-width: 1440px) {
+  .cockpit-main:has(.cockpit-cols[data-active-tab="graph"]) { max-width: 1680px !important; }
+  .cx-graph-shell { grid-template-columns: 340px minmax(0, 1fr) 380px; align-items: start; }
+}
