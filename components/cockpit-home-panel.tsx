@@ -53,7 +53,7 @@ const label: React.CSSProperties = { color: C.muted, fontSize: 12.5, fontWeight:
 // carry its meaning inline (job 2157 point 5), not just a data label.
 const DEFINITIONS = {
   leads: "Count of new Close leads today vs the 80/day minimum floor (leads below this pace under-fund the funnel).",
-  spend: "Today's Meta spend as a % of the daily glide line to the monthly budget target.",
+  spend: "Meta account spend over the trailing-30-day window vs the registered monthly budget line — refreshed nightly by the job1974 spend-pace invariant (on the 31st that window IS the month-to-date).",
   cpl: "Close-side cost-per-lead: today's Meta spend ÷ Close leads actually created today.",
   lpCvr: "Visitor → lead conversion rate on the landing pages — no per-visitor analytics source wired yet.",
   batch1: "Recovery sends completed against the batch-1 phone-migration cohort — no live send-count tracker wired yet.",
@@ -105,6 +105,16 @@ function money(n: number | null | undefined) {
   return "$" + Math.round(Number(n)).toLocaleString();
 }
 
+// job 2366 polish (Cory 2026-08-31, pre-demo): synthetic/test entries must not
+// appear on the default Home view — they remain visible on the full Squawk tab
+// (squawk-feed.tsx / squawk-console are untouched). Matches a TEST token in
+// brackets ([TEST], [test], [ TEST ]) or the phrase "synthetic test",
+// case-insensitive, anywhere in the entry title/body.
+const TEST_ENTRY_RE = /\[\s*test\s*\]|synthetic test/i;
+function isTestEntry(title?: string | null): boolean {
+  return !!title && TEST_ENTRY_RE.test(title);
+}
+
 // ── types (mirrors cockpit_v1.py's assemble() shape) ─────────────────────────
 type InboxItem = {
   id: string; from: string; subject: string; age_hours: number | null;
@@ -143,7 +153,7 @@ type CockpitV1 = {
   };
   kpi_tiles: {
     leads: { leads_today?: number; leads_yesterday?: number; floor?: number; today_vs_floor?: string; no_data?: boolean };
-    spend_pace: { budget_line_glide?: number; spend?: number; pace_pct?: number; verdict?: string; stale?: boolean; no_data?: boolean };
+    spend_pace: { budget_line_glide?: number; spend?: number; pace_pct?: number; verdict?: string; stale?: boolean; no_data?: boolean; date?: string };
     cpl_cvr: { real_cpl_usd?: number | null; close_rate_pct?: number | null; quote_rate_pct?: number | null; lp_cvr_no_source?: boolean; stale?: boolean; no_data?: boolean };
     unwatched_nodes: { unwatched_count?: number | null; unwatched_count_prev?: number | null; rising?: boolean | null; node_count?: number | null; orphan_count?: number | null; stale?: boolean; no_data?: boolean; reason?: string };
     batch1_recovery_sends: { no_data?: boolean; reason?: string };
@@ -387,17 +397,34 @@ function KpiTiles({ data }: { data: CockpitV1["kpi_tiles"] }) {
   const batch1 = data.batch1_recovery_sends || {};
   const belowFloor = leads.today_vs_floor === "below";
 
+  // job 2366 polish: name the spend tile's ACTUAL data window instead of the
+  // old "today's spend" implication. The job1974 invariant reads Meta's
+  // last_30d preset at run time; the state's own date_start/date_stop for run
+  // date D are [D-30d … D-1d] — derive the same window here from spend.date so
+  // the label can never drift from the number. When that window starts on the
+  // 1st it IS the month-to-date, so say so (Cory's 2026-08-31 wording).
+  function spendWindowLabel(dateStr?: string): string {
+    if (!dateStr) return "30-day spend";
+    const d = new Date(dateStr + "T12:00:00Z");
+    if (isNaN(d.getTime())) return "30-day spend";
+    const stop = new Date(d.getTime() - 86400000);
+    const start = new Date(stop.getTime() - 29 * 86400000);
+    const fmt = (x: Date) => x.toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+    const isMtd = start.getUTCDate() === 1 && start.getUTCMonth() === stop.getUTCMonth();
+    return isMtd ? `month-to-date (${fmt(start)}–${fmt(stop)})` : `${fmt(start)}–${fmt(stop)} spend`;
+  }
+
   return (
     <div className="cx-kpi-grid">
       <KpiTile title="Leads today vs floor(80)" definition={DEFINITIONS.leads} noData={leads.no_data}>
         <div className="cx-number" style={{ fontSize: 28, color: belowFloor ? C.amber : C.emerald }}>{leads.leads_today ?? "—"}</div>
         <div style={label}>yesterday {leads.leads_yesterday ?? "—"} · floor {leads.floor ?? 80}</div>
       </KpiTile>
-      <KpiTile title="Spend pace vs glide" definition={DEFINITIONS.spend} stale={spend.stale} noData={spend.no_data}>
+      <KpiTile title="Spend pace vs monthly line" definition={DEFINITIONS.spend} stale={spend.stale} noData={spend.no_data}>
         <div className="cx-number" style={{ fontSize: 28, color: spend.verdict === "breach" ? C.red : C.emerald }}>
           {spend.pace_pct != null ? `${spend.pace_pct}%` : "—"}
         </div>
-        <div style={label}>{money(spend.spend)} of {money(spend.budget_line_glide)} glide</div>
+        <div style={label}>{money(spend.spend)} {spendWindowLabel(spend.date)} · {money(spend.budget_line_glide)}/mo line</div>
       </KpiTile>
       <KpiTile title="Real CPL · Close-side" definition={DEFINITIONS.cpl} stale={cpl.stale} noData={cpl.no_data}>
         <div className="cx-number" style={{ fontSize: 28, color: C.text }}>{cpl.real_cpl_usd != null ? `$${cpl.real_cpl_usd}` : "—"}</div>
@@ -519,7 +546,8 @@ function CompletedLast24h({ data }: { data?: CockpitV1["cook_queue"]["completed_
 function SquawkPageFeed({ squawk }: { squawk: { count?: number; activity?: Array<{ timestamp: number; sanitized_problem: string; tier: string; status: string }> } }) {
   const activity = (squawk?.activity ?? []).slice(0, 10);
   const cutoff = Date.now() / 1000 - 48 * 3600;
-  const recent = activity.filter((a) => !a.timestamp || a.timestamp >= cutoff);
+  // job 2366: hide [TEST]/synthetic-test entries on the demo front page only
+  const recent = activity.filter((a) => (!a.timestamp || a.timestamp >= cutoff) && !isTestEntry(a.sanitized_problem));
   function color(s?: string) {
     if (s === "resolved" || s === "auto-fixed") return C.emerald;
     if (s === "failed") return C.red;
@@ -644,7 +672,8 @@ export function CockpitHomePanel({
 
   const gateNotes = notes.filter((n) => n.status === "open" && n.item_ref !== "freeform-inbox");
   const expired = v1?.expired_defaults?.items ?? [];
-  const notifyPages = v1?.notify_pages?.items ?? [];
+  // job 2366: hide [TEST]/synthetic-test pages on the demo front page only
+  const notifyPages = (v1?.notify_pages?.items ?? []).filter((p) => !isTestEntry(p.title) && !isTestEntry(p.body));
 
   return (
     <div>

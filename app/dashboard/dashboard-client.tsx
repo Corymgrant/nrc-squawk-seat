@@ -475,7 +475,7 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <Link href="/account/security" className="cx-fade" style={{ ...label, fontSize: 11 }}>
-              🔒 security
+              🔒 Security
             </Link>
             <button className="cx-btn" onClick={load} style={btn("transparent", C.muted)}>
               ↻ {updated ? updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "…"}
