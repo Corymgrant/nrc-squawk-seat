@@ -18,6 +18,7 @@ import { RoasPanel } from "@/components/roas-panel";
 import { EdgeHealthPanel } from "@/components/edge-health-panel";
 import { CockpitHomePanel } from "@/components/cockpit-home-panel";
 import { RelationsGraphPanel } from "@/components/relations-graph-panel";
+import { GraduationScoreboardPanel } from "@/components/graduation-scoreboard-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -567,6 +568,10 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       <div className="cockpit-cols" data-active-tab={activeTab}>
       {/* job 2120 — THE COCKPIT DASHBOARD v1: consolidated Home surface */}
       <div data-tab="home">
+        {/* job 2415 — AUTORESPONDER GRADUATION: reads job2370's nightly scorer
+            artifact directly; scores/counts only, never draft content. Top
+            of Home so Cory sees graduation status before anything else. */}
+        <GraduationScoreboardPanel fly={fly} flyE={flyE} />
         <CockpitHomePanel squawk={squawk} notes={notes} loadNotes={loadNotes} />
       </div>
 

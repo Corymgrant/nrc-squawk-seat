@@ -84,6 +84,19 @@ const TYPE_ORDER = [
   "form", "question", "endpage", "academy", "persona", "judge", "portal", "reviewstate",
 ];
 
+// job 2380 design distillate (Cory's IG-reel taste reference, see
+// graph_tab_design_reference.md): "color-coded bounding boxes/clusters" per
+// functional group. Health-law colors stay the SEMANTIC layer (pass/fail on
+// each node's own dot); this is a purely aesthetic accent used to cluster the
+// catalog by node type — a neon rotation, not a status signal.
+const TYPE_ACCENT_PALETTE = [
+  "#7C5CFC", "#22D3EE", "#F5A524", "#C084FC", "#34D399", "#F472B6",
+  "#38BDF8", "#FB923C", "#A3E635", "#E879F9",
+];
+const TYPE_ACCENT: Record<string, string> = Object.fromEntries(
+  TYPE_ORDER.map((t, i) => [t, TYPE_ACCENT_PALETTE[i % TYPE_ACCENT_PALETTE.length]]),
+);
+
 type GraphNode = {
   id: string;
   type: string;
@@ -204,6 +217,7 @@ function EgoGraph({
   onSelect: (id: string) => void;
 }) {
   const { fwd, rev } = useMemo(() => buildAdj(graph.edges), [graph.edges]);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   if (!selectedId || !graph.nodes[selectedId]) {
     return (
       <div
@@ -246,12 +260,27 @@ function EgoGraph({
     y: 50 + i * 46,
   }));
 
+  // job 2380 restyle: a hovered node highlights its own edge (glow + width)
+  // and dims the rest — "hover to highlight connected pathways" from the
+  // distillate's candidate-steals list.
   const dot = (n: GraphNode | undefined, x: number, y: number, r: number, id: string) => {
     if (!n) return null;
     const color = HEALTH_COLOR[n.health] ?? C.muted;
     const dashed = n.health === "red-stale" || n.orphan;
+    const isCenter = id === selectedId;
+    const isHovered = id === hoverId;
     return (
-      <g key={id} onClick={() => onSelect(id)} style={{ cursor: "pointer" }}>
+      <g
+        key={id}
+        onClick={() => onSelect(id)}
+        onMouseEnter={() => setHoverId(id)}
+        onMouseLeave={() => setHoverId((h) => (h === id ? null : h))}
+        style={{ cursor: "pointer" }}
+      >
+        {(isCenter || isHovered) && (
+          <circle cx={x} cy={y} r={r + 5} fill="none" stroke={color} strokeWidth={1} opacity={0.35}
+            filter="url(#cx-glow)" />
+        )}
         <circle
           cx={x}
           cy={y}
@@ -261,19 +290,61 @@ function EgoGraph({
           strokeWidth={dashed ? 2 : 1}
           strokeDasharray={dashed ? "3,3" : undefined}
           opacity={id === selectedId ? 1 : 0.92}
+          filter={isCenter ? "url(#cx-glow)" : undefined}
         />
       </g>
     );
   };
 
+  // Curved edge (organic feel vs. a straight diagonal) + an animated dot
+  // riding the path — "glowing curved lines with animated ... particle
+  // flows" from the distillate. Curve bends toward center first, matching
+  // the reel's tiered-branch look.
+  const edgePath = (x1: number, y1: number, x2: number, y2: number) => `M ${x1} ${y1} Q ${cx} ${y1} ${(x1 + x2) / 2} ${(y1 + y2) / 2} T ${x2} ${y2}`;
+
+  const EdgeLine = ({ x1, y1, x2, y2, nodeId }: { x1: number; y1: number; x2: number; y2: number; nodeId: string }) => {
+    const active = hoverId === nodeId || selectedId === nodeId;
+    const d = edgePath(x1, y1, x2, y2);
+    return (
+      <g>
+        <path d={d} fill="none" stroke={C.line} strokeWidth={active ? 2.25 : 1.5}
+          opacity={hoverId && !active ? 0.25 : active ? 0.9 : 0.55}
+          filter={active ? "url(#cx-glow)" : undefined}
+          style={{ transition: "opacity 0.2s, stroke-width 0.2s" }} />
+        {active && (
+          <circle r={2.4} fill={C.sky}>
+            <animateMotion dur="1.6s" repeatCount="indefinite" path={d} />
+          </circle>
+        )}
+      </g>
+    );
+  };
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }}>
+    <svg
+      key={selectedId}
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      height={H}
+      style={{ display: "block", animation: "cx-graph-settle 0.32s ease-out" }}
+    >
+      <defs>
+        <filter id="cx-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="2.6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <style>{`@keyframes cx-graph-settle { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }`}</style>
+      </defs>
+
       {/* edges: depends_on/watches/feeds/unlocks OUT (right), breaks_if IN (left) */}
       {inPositions.map(({ node, x, y }, i) =>
-        node ? <line key={`il${i}`} x1={x + 14} y1={y} x2={cx - 16} y2={cy} stroke={C.line} strokeWidth={1.5} /> : null
+        node ? <EdgeLine key={`il${i}`} x1={x + 14} y1={y} x2={cx - 16} y2={cy} nodeId={node.id} /> : null
       )}
       {outPositions.map(({ node, x, y }, i) =>
-        node ? <line key={`ol${i}`} x1={cx + 16} y1={cy} x2={x - 14} y2={y} stroke={C.line} strokeWidth={1.5} /> : null
+        node ? <EdgeLine key={`ol${i}`} x1={cx + 16} y1={cy} x2={x - 14} y2={y} nodeId={node.id} /> : null
       )}
 
       {/* center node */}
@@ -294,6 +365,7 @@ function EgoGraph({
           <text x={x} y={y + 20} textAnchor="middle" fontSize={9.5} fill={C.muted}>
             {(node?.label ?? "").slice(0, 20)}
           </text>
+          {node && <title>{node.label} — {HEALTH_LABEL[node.health] ?? node.health}</title>}
         </g>
       ))}
 
@@ -309,6 +381,7 @@ function EgoGraph({
           <text x={x} y={y + 20} textAnchor="middle" fontSize={9.5} fill={C.muted}>
             {(node?.label ?? "").slice(0, 20)}
           </text>
+          {node && <title>{node.label} — {HEALTH_LABEL[node.health] ?? node.health}</title>}
         </g>
       ))}
     </svg>
@@ -422,16 +495,25 @@ export function RelationsGraphPanel() {
           >
             All
           </button>
-          {TYPE_ORDER.map((t) => (
-            <button
-              key={t}
-              className="cx-btn"
-              onClick={() => setTypeFilter(t)}
-              style={chipStyle(typeFilter === t)}
-            >
-              {TYPE_LABEL[t]} ({graph.stats.by_type[t] ?? 0})
-            </button>
-          ))}
+          {TYPE_ORDER.map((t) => {
+            const active = typeFilter === t;
+            const accent = TYPE_ACCENT[t];
+            return (
+              <button
+                key={t}
+                className="cx-btn"
+                onClick={() => setTypeFilter(t)}
+                style={{
+                  ...chipStyle(active),
+                  borderColor: active ? accent : C.line,
+                  color: active ? accent : C.muted,
+                  background: active ? `${accent}22` : C.card,
+                }}
+              >
+                {TYPE_LABEL[t]} ({graph.stats.by_type[t] ?? 0})
+              </button>
+            );
+          })}
           <button
             className="cx-btn"
             onClick={() => setOrphansOnly((o) => !o)}
@@ -448,19 +530,24 @@ export function RelationsGraphPanel() {
         <div style={{ overflowY: "auto", maxHeight: 520, display: "flex", flexDirection: "column", gap: 2 }}>
           {filteredIds.map((id) => {
             const n = graph.nodes[id];
+            const accent = TYPE_ACCENT[n.type] ?? C.line;
             return (
               <button
                 key={id}
                 className="cx-card--tap"
                 onClick={() => setSelectedId(id)}
+                title={TYPE_LABEL[n.type] ?? n.type}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
                   textAlign: "left",
-                  padding: "7px 8px",
+                  padding: "7px 8px 7px 10px",
                   borderRadius: 10,
                   border: `1px solid ${id === selectedId ? C.emerald : "transparent"}`,
+                  borderLeftWidth: 3,
+                  borderLeftColor: accent,
+                  borderLeftStyle: "solid",
                   background: id === selectedId ? "#12251d" : "transparent",
                   color: C.text,
                   fontSize: 12.5,
