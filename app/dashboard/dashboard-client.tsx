@@ -19,6 +19,7 @@ import { EdgeHealthPanel } from "@/components/edge-health-panel";
 import { CockpitHomePanel } from "@/components/cockpit-home-panel";
 import { RelationsGraphPanel } from "@/components/relations-graph-panel";
 import { GraduationScoreboardPanel } from "@/components/graduation-scoreboard-panel";
+import { ObjectiveStuckPanel } from "@/components/objective-stuck-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -568,9 +569,15 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       <div className="cockpit-cols" data-active-tab={activeTab}>
       {/* job 2120 — THE COCKPIT DASHBOARD v1: consolidated Home surface */}
       <div data-tab="home">
+        {/* job 2610 — OBJECTIVE C DRIVER Stuck panel: every standing objective
+            (A-H), Objective C pinned first, dials/days-stuck/blocking
+            reason/acting organ. Leads Home per the cook's "Objective C on
+            top" requirement — Cory reads stuckness here before drilling
+            into 2415's detailed dial view below (kept, not superseded —
+            see objective_stuck_panel.py's module docstring). */}
+        <ObjectiveStuckPanel />
         {/* job 2415 — AUTORESPONDER GRADUATION: reads job2370's nightly scorer
-            artifact directly; scores/counts only, never draft content. Top
-            of Home so Cory sees graduation status before anything else. */}
+            artifact directly; scores/counts only, never draft content. */}
         <GraduationScoreboardPanel fly={fly} flyE={flyE} />
         <CockpitHomePanel squawk={squawk} notes={notes} loadNotes={loadNotes} />
       </div>
