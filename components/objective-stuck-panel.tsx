@@ -56,12 +56,31 @@ type ObjectiveRow = {
   shadow_mode?: boolean | null;
 };
 
+type SpendRecommendation = {
+  invariant: string;
+  verdict: string;
+  day: string;
+  what_it_would_change: string;
+  expected_effect: string;
+};
+
+type StuckRow = {
+  row_id: number;
+  title: string;
+  status: string;
+  age_hours: number;
+  blocker_class: string;
+  one_line: string;
+};
+
 type StuckSnapshot = {
   generated_at: string | null;
   age_hours: number | null;
   stale: boolean;
   objectives: ObjectiveRow[];
   row_2415_reconciliation?: string | null;
+  spend_recommendations?: { recommendations: SpendRecommendation[]; zero_writes_proof?: string } | null;
+  stuck_rows?: { n_stuck_rows: number; n_rows_with_no_report: number; rows: StuckRow[] } | null;
   error?: string;
 };
 
@@ -151,6 +170,37 @@ export function ObjectiveStuckPanel() {
           );
         })}
       </div>
+
+      {!!data.spend_recommendations?.recommendations?.length && (
+        <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+          <span style={label}>Spend recommendations (Objective E — MONEY IS CORY&apos;S, approve in chat)</span>
+          {data.spend_recommendations!.recommendations.map((r, i) => (
+            <div key={i} style={{ ...def, marginTop: 6 }}>
+              <span style={{ color: C.amber, fontWeight: 600 }}>{r.invariant}</span> ({r.verdict}, {r.day}):{" "}
+              {r.what_it_would_change} — expected: {r.expected_effect}
+            </div>
+          ))}
+          {data.spend_recommendations!.zero_writes_proof && (
+            <div style={{ ...def, marginTop: 4, opacity: 0.7 }}>{data.spend_recommendations!.zero_writes_proof}</div>
+          )}
+        </div>
+      )}
+
+      {!!data.stuck_rows?.n_stuck_rows && (
+        <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+          <span style={label}>
+            Stuck rows (48h+ queued/blocked/parked) — {data.stuck_rows!.n_stuck_rows} rows,{" "}
+            {data.stuck_rows!.n_rows_with_no_report} without a report
+          </span>
+          <div style={{ maxHeight: 180, overflowY: "auto", marginTop: 4 }}>
+            {data.stuck_rows!.rows.map((r) => (
+              <div key={r.row_id} style={{ ...def, marginTop: 4 }}>
+                {r.one_line}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.row_2415_reconciliation && (
         <div style={{ marginTop: 10, fontSize: 10.5, color: C.muted, lineHeight: 1.3 }}>
