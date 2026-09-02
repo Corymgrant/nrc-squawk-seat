@@ -20,6 +20,7 @@ import { CockpitHomePanel } from "@/components/cockpit-home-panel";
 import { RelationsGraphPanel } from "@/components/relations-graph-panel";
 import { GraduationScoreboardPanel } from "@/components/graduation-scoreboard-panel";
 import { ObjectiveStuckPanel } from "@/components/objective-stuck-panel";
+import { CoryTodayPanel } from "@/components/cory-today-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -569,6 +570,14 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       <div className="cockpit-cols" data-active-tab={activeTab}>
       {/* job 2120 — THE COCKPIT DASHBOARD v1: consolidated Home surface */}
       <div data-tab="home">
+        {/* job 2642 — CORY TODAY panel: the NRC-Cory-Today render ON the
+            dashboard (Cory amendment 2026-09-02: the dashboard is the home
+            surface — Sarah Runnels' unanswered W-9 thread was captured in
+            the doc at 12:47 and never reached Cory the day this was built).
+            UNANSWERED / NEEDS INFO / PARKED ON CORY / MONEY with Gmail
+            thread links; seats as a one-line count. Leads Home because it
+            is Cory's to-do list; 2610's Stuck panel follows. */}
+        <CoryTodayPanel />
         {/* job 2610 — OBJECTIVE C DRIVER Stuck panel: every standing objective
             (A-H), Objective C pinned first, dials/days-stuck/blocking
             reason/acting organ. Leads Home per the cook's "Objective C on
