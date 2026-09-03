@@ -63,10 +63,18 @@ type QueuedRow = {
   id: number; title: string | null; lane: string | null; priority: string | null;
   queued_minutes: number | null; why_not_yet: string | null;
 };
+type DueTodayItem = {
+  kind: string; source: string; row_id: number | null; date: string; what: string;
+};
+type DueToday = {
+  ok: boolean; today_ct?: string; count: number; items: DueTodayItem[];
+  error?: string;
+};
 type BoardNow = {
   ok: boolean; kit: string;
   read_at: string | null; read_at_ct: string | null;
   stale_after_seconds: number; landed_since_ct: string | null;
+  due_today?: DueToday | null;
   cooking_now: CookingRow[]; landed: LandedRow[];
   needs_cory: NeedsCoryRow[]; queued_top: QueuedRow[];
   counts: Record<string, number>;
@@ -149,6 +157,28 @@ export function BoardNowPanel() {
           : "no read timestamp"}
         {stale ? " — board read outlived its 5-minute freshness budget, treat as unknown (board_now_fresh is paging)" : ""}
       </div>
+
+      {/* job2728 DUE TODAY — date-gated checkpoints/deadlines/send-dates surface
+          themselves. Hide-on-fail: a failed derivation (due_today absent or
+          ok:false) renders nothing, never a false empty. Empty-when-ok is also
+          hidden: no dates due is the quiet normal state, not a panel. */}
+      {data.due_today && data.due_today.ok !== false && (data.due_today.items?.length ?? 0) > 0 && (
+        <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 8, marginTop: 8 }}>
+          <span style={label}>DUE TODAY ({data.due_today.items.length})</span>
+          <div style={def}>dates that surface themselves — checkpoints, deadlines, send dates · {data.due_today.today_ct} CT</div>
+          {data.due_today.items.map((it, i) => (
+            <div key={i} style={{ marginTop: 6 }}>
+              <div style={rowTitle}>
+                📅 {it.kind === "deadline" || it.kind === "registry-deadline" ? "⏰ " : ""}
+                {it.row_id ? `#${it.row_id} ` : ""}{it.what}
+              </div>
+              <div style={def}>
+                {it.kind} · {it.source} · due {it.date} CT
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Section title="COOKING NOW" count={data.cooking_now.length} empty="nothing in flight — the board is idle.">
         {data.cooking_now.map((r) => (
