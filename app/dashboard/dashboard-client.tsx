@@ -22,6 +22,7 @@ import { RelationsGraphPanel } from "@/components/relations-graph-panel";
 import { GraduationScoreboardPanel } from "@/components/graduation-scoreboard-panel";
 import { ObjectiveStuckPanel } from "@/components/objective-stuck-panel";
 import { CoryTodayPanel } from "@/components/cory-today-panel";
+import { BoardNowPanel } from "@/components/board-now-panel";
 
 /* ── Concept C palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -579,6 +580,15 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
             thread links; seats as a one-line count. Leads Home because it
             is Cory's to-do list; 2610's Stuck panel follows. */}
         <CoryTodayPanel />
+        {/* job 2682 — BOARD NOW panel: the Orchestrator board itself on the
+            glass (Cory 2026-09-02 ~22:55 CT: "I need to see everything we
+            are cooking so I remember in the morning and do not get buried
+            by new tasks"). COOKING NOW / LANDED SINCE 22:00 CT with
+            handoff receipts / NEEDS CORY (linked to Cory Today, never
+            duplicated) / QUEUED top 10 with why-not-yet. Sits directly
+            under Cory Today per the cook; read-only, kit-keyed, 60s poll,
+            STALE badge past 5min, hides on a failed read. */}
+        <BoardNowPanel />
         {/* job 2610 — OBJECTIVE C DRIVER Stuck panel: every standing objective
             (A-H), Objective C pinned first, dials/days-stuck/blocking
             reason/acting organ. Leads Home per the cook's "Objective C on
