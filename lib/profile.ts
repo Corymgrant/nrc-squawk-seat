@@ -10,10 +10,6 @@ export type Profile = {
 };
 
 export async function getSessionProfile(): Promise<Profile | null> {
-  // TEMPORARY screenshot bypass (job 2682) — REVERTED BEFORE COMMIT.
-  if (process.env.SQUAWK_SCREENSHOT_BYPASS === "1") {
-    return { id: "screenshot", org_id: "screenshot", email: "cory@norepaircost.com", full_name: "Cory", role: "owner" };
-  }
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const sub = data?.claims?.sub;
