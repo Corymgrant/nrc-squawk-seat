@@ -84,6 +84,14 @@ function Section({
   );
 }
 
+function fmtDur(min: number | null): string {
+  if (min == null) return "";
+  if (min < 120) return `${Math.round(min)}min`;
+  const h = min / 60;
+  if (h < 48) return `${Math.round(h)}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
 export function BoardNowPanel() {
   const [data, setData] = useState<BoardNow | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -151,7 +159,7 @@ export function BoardNowPanel() {
             <div style={def}>
               {r.engine || "conductor"}
               {r.progress_pct != null ? ` · ${Math.round(r.progress_pct)}%` : ""}
-              {r.minutes_running != null ? ` · ${Math.round(r.minutes_running)}min running` : ""}
+              {r.minutes_running != null ? ` · ${fmtDur(r.minutes_running)} running` : ""}
               {r.purpose ? ` — ${r.purpose}` : ""}
             </div>
           </div>
@@ -216,7 +224,7 @@ export function BoardNowPanel() {
             </div>
             <div style={def}>
               why not yet: {r.why_not_yet || "unknown"}
-              {r.queued_minutes != null ? ` · queued ${Math.round(r.queued_minutes)}min` : ""}
+              {r.queued_minutes != null ? ` · queued ${fmtDur(r.queued_minutes)}` : ""}
             </div>
           </div>
         ))}
