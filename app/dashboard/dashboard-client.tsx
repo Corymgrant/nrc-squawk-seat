@@ -16,6 +16,7 @@ import { GauntletPanel } from "@/components/gauntlet-panel";
 import { ChannelCommandPanel } from "@/components/channel-command-panel";
 import { RoasPanel } from "@/components/roas-panel";
 import { EdgeHealthPanel } from "@/components/edge-health-panel";
+import { BuildLedgerPanel } from "@/components/build-ledger-panel";
 import { CockpitHomePanel } from "@/components/cockpit-home-panel";
 import { RelationsGraphPanel } from "@/components/relations-graph-panel";
 import { GraduationScoreboardPanel } from "@/components/graduation-scoreboard-panel";
@@ -1345,6 +1346,12 @@ export function DashboardClient({ ownerName }: { ownerName: string }) {
       </div>
       <div data-tab="ops">
         <EdgeHealthPanel />
+      </div>
+      <div data-tab="ops">
+        {/* job 2664: Build Ledger + Estate Census -- derived build state per
+            capability (live/shadow_awaiting_authorization/shadow_graduating/
+            half_built/superseded/dead/unknown) + OVERLAPS redundancy panel */}
+        <BuildLedgerPanel />
       </div>
       <div data-tab="ops">
         <CanonicalBrainPanel />
